@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Toaster } from 'react-hot-toast';
 
@@ -6,6 +6,9 @@ export const metadata: Metadata = {
   title: "Sikad Fare Calculator - Midsayap",
   description: "Tricycle fare calculator for Midsayap, Cotabato based on LGU Ordinance No. 536",
   manifest: "/manifest.json",
+};
+
+export const viewport: Viewport = {
   themeColor: "#000000",
 };
 
