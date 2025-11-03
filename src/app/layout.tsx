@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Toaster } from 'react-hot-toast';
+import 'flowbite';
+
 
 export const metadata: Metadata = {
   title: "Sikad Fare Calculator - Midsayap",
@@ -32,7 +34,6 @@ export default function RootLayout({
       <body>
         {children}
         <Toaster position="top-center" />
-        <script src="../../node_modules/flowbite/dist/flowbite.min.js"></script>
       </body>
     </html>
   );

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import { MapMarker, PassengerType } from '../lib/types';
 import { calculateMapFare, haversineDistance } from '../lib/fareCalculations';
-import GasPriceSelector from './GasPriceSelector';
+import GasPriceSelector from './form/GasPriceSelector';
 import toast from 'react-hot-toast';
 
 interface MapModeProps {
@@ -12,7 +12,7 @@ interface MapModeProps {
   passengerType: PassengerType;
   hasBaggage: boolean;
   onGasPriceChange: (price: number) => void;
-  onPassengerTypeChange: (type: PassengerType) => void;
+  onPassengerTypeChange: (type: Partial<PassengerType>) => void;
   onBaggageChange: (hasBaggage: boolean) => void;
   onCalculate: (result: any) => void;
   onError: (error: string) => void;
@@ -256,9 +256,9 @@ export default function MapMode({
           <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
-              onClick={() => onPassengerTypeChange('student')}
+              onClick={() => onPassengerTypeChange({ type: 'student' })}
               className={`p-4 rounded-2xl font-bold text-sm transition-all border-2 active:scale-95 ${ 
-                passengerType === 'student'
+                passengerType.type === 'student'
                   ? 'bg-black text-white border-black shadow-lg scale-105'
                   : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-gray-300'
               }`}
@@ -268,9 +268,9 @@ export default function MapMode({
             </button>
             <button
               type="button"
-              onClick={() => onPassengerTypeChange('regular')}
+              onClick={() => onPassengerTypeChange({ type: 'regular' })}
               className={`p-4 rounded-2xl font-bold text-sm transition-all border-2 active:scale-95 ${ 
-                passengerType === 'regular'
+                passengerType.type === 'regular'
                   ? 'bg-black text-white border-black shadow-lg scale-105'
                   : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-gray-300'
               }`}

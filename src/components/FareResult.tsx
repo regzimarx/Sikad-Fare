@@ -8,11 +8,11 @@ export default function FareResult({ result }: FareResultProps) {
   return (
     <div className="mt-6 animate-slide-up">
       {/* Fare Amount Card */}
-      <div className="bg-gradient-to-br from-green-500 via-emerald-600 to-teal-600 rounded-3xl p-6 text-white text-center shadow-2xl mb-4">
+      <div className="bg-gradient-to-br from-green-500 via-emerald-600 to-teal-600 rounded-3xl p-8 text-white text-center shadow-2xl mb-4">
         <div className="text-sm uppercase tracking-wider opacity-90 mb-2 font-semibold">
           Your Fare
         </div>
-        <div className="text-6xl font-black my-4 drop-shadow-lg">
+        <div className="text-8xl font-black my-6 drop-shadow-lg">
           ₱{result.fare.toFixed(2)}
         </div>
         <div className="flex items-center justify-center gap-2 text-sm opacity-90">
@@ -51,7 +51,7 @@ export default function FareResult({ result }: FareResultProps) {
               <div className="text-xl mb-1">👤</div>
               <div className="text-xs text-purple-600 font-semibold mb-1">Type</div>
               <div className="font-bold text-gray-900 text-sm">
-                {result.passengerType === 'student' ? 'Student' : 'Regular'}
+                {result.passengerType.type === 'student' ? 'Student' : 'Regular'}
               </div>
             </div>
           </div>
