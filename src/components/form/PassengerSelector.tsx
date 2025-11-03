@@ -97,7 +97,7 @@ export default function PassengerSelector({ passengerType, onChange }: Passenger
           }`}
         >
           <span className="truncate text-gray-900 flex items-center gap-1.5">
-            <span className="font-semibold">{passengerType.quantity}x</span>
+            <span className="font-semibold">{passengerType.quantity} </span>
             <span className="text-gray-300 font-normal">|</span>
             <span className="truncate">
               {passengerTypeOptions.find(o => o.value === selectedUIType)?.label || 'Regular'}

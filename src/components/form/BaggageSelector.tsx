@@ -8,7 +8,7 @@ interface BaggageSelectorProps {
 export default function BaggageSelector({ hasBaggage, onChange }: BaggageSelectorProps) {
   return (
     <div>
-      <label className="text-xs font-bold text-gray-600 mb-1 flex items-center gap-1">
+      <label className="text-xs font-bold text-gray-600 mt-2 mb-1 flex items-center gap-1">
         <span>🎒</span> Baggage
       </label>
       <label className="flex items-center gap-2 p-2 bg-gray-50 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-gray-300 transition-all active:scale-[0.98] h-12">
