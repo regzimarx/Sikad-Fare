@@ -97,7 +97,7 @@ export default function FareCalculator() {
             <div className="flex-grow" />
           </div>
         ) : (
-          <div className="p-4 pt-0 overflow-y-auto pb-[260px]">
+          <div className="p-4 pt-0 h-full">
             <MapMode
               gasPrice={state.gasPrice}
               passengerType={state.passengerType}

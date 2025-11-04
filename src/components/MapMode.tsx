@@ -1,10 +1,13 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
+import { useDrag } from '@use-gesture/react';
+import { FaSpinner } from 'react-icons/fa';
 import L from 'leaflet';
-import { MapMarker, PassengerType } from '../lib/types';
+import { FareCalculation, MapMarker, PassengerType } from '../lib/types'; // 💡 Use existing selectors
 import { calculateMapFare, haversineDistance } from '../lib/fareCalculations';
 import GasPriceSelector from './form/GasPriceSelector';
+import PassengerSelector from './form/PassengerSelector';
 import toast from 'react-hot-toast';
 
 interface MapModeProps {
@@ -13,7 +16,7 @@ interface MapModeProps {
   hasBaggage: boolean;
   onGasPriceChange: (price: number) => void;
   onPassengerTypeChange: (type: Partial<PassengerType>) => void;
-  onBaggageChange: (hasBaggage: boolean) => void;
+  onBaggageChange: (value: boolean) => void;
   onCalculate: (result: any) => void;
   onError: (error: string) => void;
 }
@@ -34,18 +37,53 @@ export default function MapMode({
   const [destMarker, setDestMarker] = useState<L.Marker | null>(null);
   const [routeLine, setRouteLine] = useState<L.Polyline | null>(null);
   const [setOriginMode, setSetOriginMode] = useState(false);
-  const [mapStats, setMapStats] = useState({ rateUsed: 0, estimatedDist: 0 });
+  const [isMapInitializing, setIsMapInitializing] = useState(true);
+  const [isPanelExpanded, setIsPanelExpanded] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const collapsedHeight = 230;
+  const expandedHeight = window.innerHeight * 0.6;
+  const fullyExpandedHeight = window.innerHeight - 80;
+
+  // --- Constants for Marker Icons ---
+  const originIcon = L.icon({
+    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+    iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+  });
+
+  const destIcon = L.icon({
+    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+    iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+  });
+
+  // --- Helper Functions ---
+  const createMarker = (latlng: L.LatLng, options: L.MarkerOptions, popupText: string) => {
+    if (!mapRef.current) return null;
+    const marker = L.marker(latlng, options).addTo(mapRef.current);
+    marker.bindPopup(popupText);
+    return marker;
+  };
 
   useEffect(() => {
     if (typeof window === 'undefined' || !mapContainerRef.current || mapRef.current) return;
 
+    setIsMapInitializing(true);
+
     // Initialize map
-    const map = L.map(mapContainerRef.current).setView([7.2320, 124.3650], 12);
+    const map = L.map(mapContainerRef.current, { zoomControl: false }).setView([7.2320, 124.3650], 12);
     
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '© OpenStreetMap contributors'
     }).addTo(map);
+
+    map.whenReady(() => setIsMapInitializing(false));
+
+    // --- 💡 FIX: Immediately create a fallback origin marker at the map's center ---
+    const initialCenter = L.latLng(7.2320, 124.3650);
+    const fallbackMarker = createMarker(initialCenter, { icon: originIcon, draggable: true }, 'Origin');
+    setOriginMarker(fallbackMarker);
 
     mapRef.current = map;
 
@@ -54,27 +92,13 @@ export default function MapMode({
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           const { latitude, longitude } = pos.coords;
-          // Check if map still exists before using it
-          if (mapRef.current) {
-            mapRef.current.setView([latitude, longitude], 13);
-          }
           
           // Ensure map still exists before adding marker
-          if (mapRef.current) {
-            const marker = L.marker([latitude, longitude], {
-              icon: L.icon({
-                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
-                shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-                iconSize: [25, 41],
-                iconAnchor: [12, 41],
-                popupAnchor: [1, -34],
-                shadowSize: [41, 41]
-              }),
-              draggable: true
-            }).addTo(mapRef.current);
-            
-            marker.bindPopup('Your Location').openPopup();
-            setOriginMarker(marker);
+          if (mapRef.current && fallbackMarker) {
+            const userLatLng = L.latLng(latitude, longitude);
+            mapRef.current.setView(userLatLng, 13);
+            fallbackMarker.setLatLng(userLatLng);
+            fallbackMarker.setPopupContent('Your Location').openPopup();
           }
         },
         () => {
@@ -90,19 +114,7 @@ export default function MapMode({
         if (originMarker) {
           originMarker.setLatLng(e.latlng);
         } else {
-          const marker = L.marker(e.latlng, {
-            icon: L.icon({
-              iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
-              shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-              iconSize: [25, 41],
-              iconAnchor: [12, 41],
-              popupAnchor: [1, -34],
-              shadowSize: [41, 41]
-            }),
-            draggable: true
-          }).addTo(map);
-          marker.bindPopup('Origin');
-          setOriginMarker(marker);
+          setOriginMarker(createMarker(e.latlng, { icon: originIcon, draggable: true }, 'Origin'));
         }
         setSetOriginMode(false);
       } else {
@@ -110,18 +122,7 @@ export default function MapMode({
         if (destMarker) {
           destMarker.setLatLng(e.latlng);
         } else {
-          const marker = L.marker(e.latlng, {
-            icon: L.icon({
-              iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-              shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-              iconSize: [25, 41],
-              iconAnchor: [12, 41],
-              popupAnchor: [1, -34],
-              shadowSize: [41, 41]
-            })
-          }).addTo(map);
-          marker.bindPopup('Destination');
-          setDestMarker(marker);
+          setDestMarker(createMarker(e.latlng, { icon: destIcon }, 'Destination'));
         }
         
         // Draw line
@@ -138,6 +139,84 @@ export default function MapMode({
       }
     };
   }, []);
+
+  // --- Draggable Panel Logic using @use-gesture/react ---
+  const bind = useDrag(
+    ({ down, movement: [, my], velocity: [, vy], direction: [, dy], memo }) => {
+      const panel = panelRef.current;
+      if (!panel) return;
+
+      if (!memo) {
+        memo = panel.clientHeight; // Store initial height on drag start
+      }
+
+      let newHeight = memo - my;
+
+      // Rubber band effect when dragging past boundaries
+      if (newHeight < collapsedHeight) {
+        const overflow = collapsedHeight - newHeight;
+        newHeight = collapsedHeight - overflow * 0.4;
+      } else if (newHeight > fullyExpandedHeight) {
+        const overflow = newHeight - fullyExpandedHeight;
+        newHeight = fullyExpandedHeight + overflow * 0.4;
+      }
+
+      if (down) {
+        panel.style.transition = 'none';
+        panel.style.height = `${newHeight}px`;
+      } else {
+        // On drag end, decide where to snap
+        panel.style.transition = 'height 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+        const currentHeight = panel.clientHeight;
+        let targetHeight: number;
+
+        // Check for a "flick" gesture
+        if (vy > 0.5) {
+          targetHeight = dy > 0 ? fullyExpandedHeight : collapsedHeight;
+        } else {
+          // Snap to the nearest state (collapsed, expanded, or full)
+          const distances = [
+            { height: collapsedHeight, dist: Math.abs(currentHeight - collapsedHeight) },
+            { height: expandedHeight, dist: Math.abs(currentHeight - expandedHeight) },
+            { height: fullyExpandedHeight, dist: Math.abs(currentHeight - fullyExpandedHeight) },
+          ];
+          distances.sort((a, b) => a.dist - b.dist);
+          targetHeight = distances[0].height;
+        }
+        panel.style.height = `${targetHeight}px`;
+        setIsPanelExpanded(targetHeight > collapsedHeight);
+      }
+      return memo;
+    },
+    {
+      axis: 'y',
+      from: () => [0, -panelRef.current!.clientHeight],
+      bounds: {
+        top: -(fullyExpandedHeight + 100), // Allow over-dragging
+        bottom: -(collapsedHeight - 100),
+      },
+    }
+  );
+
+  const togglePanel = () => {
+    if (!panelRef.current) return;
+    panelRef.current.style.transition = 'height 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+    const newIsExpanded = !isPanelExpanded;
+    if (newIsExpanded) {
+      panelRef.current.style.height = `${expandedHeight}px`;
+    } else {
+      panelRef.current.style.height = `${collapsedHeight}px`;
+    }
+    setIsPanelExpanded(newIsExpanded);
+  };
+
+  // Effect to change map cursor based on setOriginMode
+  useEffect(() => {
+    if (mapContainerRef.current) {
+      mapContainerRef.current.style.cursor = setOriginMode ? 'crosshair' : '';
+    }
+  }, [setOriginMode]);
+
 
   const updateRouteLine = (origin: L.LatLng, dest: L.LatLng) => {
     if (routeLine) {
@@ -165,11 +244,6 @@ export default function MapMode({
 
     const result = calculateMapFare(distKm, gasPrice, passengerType, hasBaggage);
 
-    setMapStats({
-      rateUsed: result.rateUsed,
-      estimatedDist: result.estimatedRoadDist
-    });
-
     onCalculate({
       fare: result.fare,
       routeName: 'Map Route',
@@ -192,126 +266,163 @@ export default function MapMode({
       routeLine.remove();
       setRouteLine(null);
     }
-    setMapStats({ rateUsed: 0, estimatedDist: 0 });
+    if (panelRef.current) {
+      panelRef.current.style.height = `${collapsedHeight}px`;
+    }
+    setIsPanelExpanded(false);
   };
 
   return (
-    <div>
-      {/* Map Container */}
-      <div ref={mapContainerRef} className="h-96 rounded-xl overflow-hidden mb-4 border-2 border-gray-300 relative z-10" />
+    <div className="h-full flex flex-col relative">
+      {/* Map Container with floating controls */}
+      <div className="absolute inset-0 rounded-2xl overflow-hidden shadow-lg border border-black">
+        <div ref={mapContainerRef} className="w-full h-full z-10 bg-gray-200" />
 
-      {/* Map Info */}
-      <div className="bg-gray-50 p-4 rounded-xl mb-4 text-sm space-y-1">
-        <p className="text-blue-600 font-semibold">
-          Rate Used: ₱{mapStats.rateUsed.toFixed(2)}/km
-        </p>
-        <p className="text-orange-600 font-semibold">
-          Estimated road distance: {mapStats.estimatedDist.toFixed(2)} km
-        </p>
-        <p className="text-red-600 text-xs">
-          Note: Fare is based on an estimated road distance (straight-line distance + 8%) to account for road curves.
-        </p>
-      </div>
+        {isMapInitializing && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-200/50 z-20">
+            <div className="flex items-center gap-2 text-gray-500">
+              <FaSpinner className="animate-spin" />
+              <span>Loading Map...</span>
+            </div>
+          </div>
+        )}
+        
+        {/* Floating Action Buttons (FABs) for Map Controls */}
+        <div className="absolute top-4 right-4 z-20 flex flex-col gap-2">
+          <button
+            type="button"
+            onClick={() => setSetOriginMode(!setOriginMode)}
+            className={`w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition-all text-2xl ${
+              setOriginMode
+                ? 'bg-yellow-400 text-black'
+                : 'bg-white text-black hover:bg-gray-100'
+            }`}
+            title={setOriginMode ? 'Click map to set new Origin' : 'Set Custom Origin'}
+          >
+            📍
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (navigator.geolocation && mapRef.current) {
+                toast.loading('Getting your location...');
+                navigator.geolocation.getCurrentPosition((pos) => {
+                  toast.dismiss();
+                  toast.success('Location found!');
+                  const { latitude, longitude } = pos.coords;
+                  mapRef.current!.setView([latitude, longitude], 14);
+                  if (originMarker) {
+                    originMarker.setLatLng([latitude, longitude]);
+                  }
+                });
+              }
+            }}
+            className="w-12 h-12 bg-white text-black rounded-full flex items-center justify-center shadow-lg hover:bg-gray-100 transition-all text-2xl"
+            title="Use My Location for Origin"
+          >
+            🛰️
+          </button>
+        </div>
 
-      {/* Map Controls */}
-      <div className="flex gap-2 mb-4">
-        <button
-          type="button"
-          onClick={() => setSetOriginMode(!setOriginMode)}
-          className={`flex-1 py-3 px-4 rounded-full font-bold text-sm transition-all ${
-            setOriginMode
-              ? 'bg-yellow-500 text-black'
-              : 'bg-black text-white hover:bg-gray-800'
-          }`}
+        {/* Map Overlay for Expanded Panel */}
+        {isPanelExpanded && (
+          <div 
+            className="absolute inset-0 bg-black/70 z-30 animate-fade-in"
+            onClick={togglePanel}
+          />
+        )}
+
+        {/* Bottom Panel with Smooth Drag */}
+        <div
+          ref={panelRef}
+          className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-xl rounded-t-3xl shadow-[0_-10px_30px_-15px_rgba(0,0,0,0.2)] border-t border-gray-200 z-40"
+          style={{ height: `${collapsedHeight}px`, willChange: 'height' }}
         >
-          {setOriginMode ? 'Click map to set Origin' : 'Set Origin by Click'}
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            if (navigator.geolocation && mapRef.current) {
-              navigator.geolocation.getCurrentPosition((pos) => {
-                const { latitude, longitude } = pos.coords;
-                mapRef.current!.setView([latitude, longitude], 14);
-                if (originMarker) {
-                  originMarker.setLatLng([latitude, longitude]);
-                }
-              });
-            }
-          }}
-          className="flex-1 py-3 px-4 bg-white text-black border-2 border-black rounded-full font-bold text-sm hover:bg-gray-50 transition-all"
-        >
-          Use My Location
-        </button>
-      </div>
+          <div className="p-6 flex flex-col h-full max-h-full" {...bind()}>
+            {/* Grabber Handle - More prominent and easier to grab */}
+            <div 
+              className="absolute top-3 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-gray-400 rounded-full cursor-grab active:cursor-grabbing" 
+            />
 
-      {/* Gas Price */}
-      <GasPriceSelector gasPrice={gasPrice} onChange={onGasPriceChange} />
+            {/* Collapsed View */}
+            <div className={`flex-shrink-0 ${isPanelExpanded ? 'hidden' : 'block'} animate-fade-in`} onClick={!isPanelExpanded ? togglePanel : undefined}>
+              <div className="text-center font-semibold text-gray-700 mb-4 pt-2">
+                SELECT DESTINATION
+              </div>
+              <div className="w-full p-4 bg-gray-100 border-2 border-gray-200 rounded-xl text-left flex items-center justify-between gap-3 mb-4">
+                <span className="text-gray-500">Destination...</span>
+                <button className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-gray-600">⋯</button>
+              </div>
+              <button
+                onClick={handleCalculate}
+                disabled={!originMarker || !destMarker}
+                className="w-full py-4 bg-black text-white rounded-xl font-bold text-base transition-all shadow-md shadow-black/20 disabled:bg-gray-300 disabled:cursor-not-allowed active:scale-[0.98]"
+              >
+                CALCULATE
+              </button>
+              <p className="text-center text-xs text-gray-400 mt-3">
+                Swipe up to see more options.
+              </p>
+            </div>
 
-      {/* Passenger Type */}
-        <div>
-          <label className="text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
-            <span className="text-lg">👤</span> Passenger
-          </label>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => onPassengerTypeChange({ type: 'student' })}
-              className={`p-4 rounded-2xl font-bold text-sm transition-all border-2 active:scale-95 ${ 
-                passengerType.type === 'student'
-                  ? 'bg-black text-white border-black shadow-lg scale-105'
-                  : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-gray-300'
-              }`}
-            >
-              <div className="text-2xl mb-1">🎓</div>
-              <div className="text-xs">Student/PWD/Senior</div>
-            </button>
-            <button
-              type="button"
-              onClick={() => onPassengerTypeChange({ type: 'regular' })}
-              className={`p-4 rounded-2xl font-bold text-sm transition-all border-2 active:scale-95 ${ 
-                passengerType.type === 'regular'
-                  ? 'bg-black text-white border-black shadow-lg scale-105'
-                  : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-gray-300'
-              }`}
-            >
-              <div className="text-2xl mb-1">👔</div>
-              <div className="text-xs">Regular</div>
-            </button>
+            {/* Expanded View */}
+            <div className={`flex flex-col flex-grow min-h-0 ${isPanelExpanded ? 'flex animate-fade-in' : 'hidden'} pt-2`}>
+              <div className="text-center font-semibold text-gray-700 mb-4 flex-shrink-0">SELECT DESTINATION</div>
+              <div className="w-full p-4 bg-gray-100 border-2 border-gray-200 rounded-xl text-left flex items-center justify-between gap-3 mb-4 flex-shrink-0">
+                <span className={destMarker ? 'text-gray-800 font-medium' : 'text-gray-500'}>
+                  {destMarker ? 'Destination Set' : 'Click on map...'}
+                </span>
+                <button className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-gray-600">⋯</button>
+              </div>
+
+              {/* Scrollable Options Area */}
+              <div className="flex-grow overflow-y-auto space-y-4 pr-2 -mr-4 pl-1 -ml-1 custom-scrollbar">
+                {/* Gas and Passenger Section */}
+                <div className="grid grid-cols-2 gap-3">
+                  <GasPriceSelector gasPrice={gasPrice} onChange={onGasPriceChange} />
+                  <PassengerSelector
+                    passengerType={passengerType}
+                    onChange={onPassengerTypeChange}
+                  />
+                </div>
+
+                {/* Baggage and Calculate Section */}
+                <div className="grid grid-cols-2 gap-3">
+                  <button 
+                    onClick={() => onBaggageChange(!hasBaggage)}
+                    className={`w-full p-4 text-sm font-semibold rounded-lg border-2 transition-all flex items-center justify-center gap-2 ${hasBaggage ? 'bg-black text-white border-black' : 'bg-gray-100 text-gray-700 border-gray-200'}`}
+                  >
+                    <span>🎒</span> Add Baggage
+                  </button>
+                  <button
+                    onClick={handleCalculate}
+                    disabled={!originMarker || !destMarker}
+                    className="w-full py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg font-bold text-base transition-all shadow-lg shadow-emerald-500/30 disabled:bg-gray-300 disabled:shadow-none disabled:from-gray-300 disabled:to-gray-300"
+                  >
+                    CONFIRM
+                  </button>
+                </div>
+
+                {/* Other Options */}
+                <div className="pt-2">
+                  <div className="text-center text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Other Options</div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button onClick={() => toast('Coming soon!')} className="p-3 bg-gray-100 rounded-lg text-xs font-semibold text-gray-600 flex items-center justify-center gap-2">
+                      <span className="text-lg">▶️</span> Record
+                    </button>
+                    <button 
+                      onClick={() => setSetOriginMode(true)} 
+                      className="p-3 bg-gray-100 rounded-lg text-xs font-semibold text-gray-600 flex items-center justify-center gap-2"
+                    >
+                      <span className="text-lg">📍</span> Custom Origin
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-  
-        {/* Baggage */}
-        <label className="flex items-center gap-4 p-4 bg-gray-50 border-2 border-gray-200 rounded-2xl cursor-pointer hover:border-gray-300 transition-all active:scale-[0.98] mt-4 pb-4">
-          <input
-            type="checkbox"
-            checked={hasBaggage}
-            onChange={(e) => onBaggageChange(e.target.checked)}
-            className="w-6 h-6 accent-black cursor-pointer rounded-lg"
-          />
-          <div className="flex-1">
-            <div className="font-bold text-gray-900 flex items-center gap-2">
-              <span>🎒</span> Baggage
-            </div>
-            <div className="text-xs text-gray-600 mt-0.5">Add ₱10.00 fee</div>
-          </div>
-        </label>
-
-      {/* Action Buttons */}
-      <button
-        type="button"
-        onClick={handleCalculate}
-        className="w-full py-4 bg-black text-white rounded-full font-bold text-lg hover:bg-gray-800 transition-all mb-2 mt-4"
-      >
-        Calculate Fare
-      </button>
-      <button
-        type="button"
-        onClick={handleReset}
-        className="w-full py-4 bg-white text-black border-2 border-black rounded-full font-bold text-lg hover:bg-gray-50 transition-all"
-      >
-        Reset
-      </button>
+      </div>
     </div>
   );
 }
