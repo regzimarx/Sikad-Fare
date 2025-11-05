@@ -102,9 +102,18 @@ export default function MapMode({
     try {
       const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latlng.lat}&lon=${latlng.lng}`);
       const data = await response.json();
-      // Use display_name, but fallback to a shorter name if too long, or coordinates on failure
-      const address = data.display_name ? (data.display_name.length > 50 ? `${data.name} ${data.address.city || data.address.town}` : data.display_name) : fallbackText;
-      setText(address);
+      if (data && data.display_name) {
+        let displayName = data.display_name;
+        // If the display name is too long, construct a shorter, more reliable one.
+        if (displayName.length > 50) {
+          const addr = data.address;
+          const shortAddress = [addr.road || addr.suburb, addr.city || addr.town || addr.village, addr.country].filter(Boolean).join(', ');
+          displayName = shortAddress || displayName.split(',').slice(0, 3).join(',');
+        }
+        setText(displayName);
+      } else {
+        setText(fallbackText);
+      }
     } catch (error) {
       console.error("Reverse geocoding failed:", error);
       setText(fallbackText);
@@ -121,9 +130,10 @@ export default function MapMode({
   // -------------------------------------------------------------------
   const createMarker = useCallback(
     (latlng: L.LatLng, type: 'origin' | 'destination', draggable = false) => {
-      if (!mapRef.current) return null;
+      const map = mapRef.current;
+      if (!map) return null;
 
-      const marker = L.marker(latlng, { icon: MARKER_ICONS[type], draggable }).addTo(mapRef.current);
+      const marker = L.marker(latlng, { icon: MARKER_ICONS[type], draggable }).addTo(map);
 
       if (type === 'destination') marker.bindPopup('🎯 Destination');
 
@@ -148,7 +158,7 @@ export default function MapMode({
 
       return marker;
     },
-    [reverseGeocode] // Add reverseGeocode to dependency array
+    [reverseGeocode]
   );
 
   // -------------------------------------------------------------------
@@ -190,19 +200,19 @@ export default function MapMode({
       (pos) => {
         const { latitude, longitude } = pos.coords;
         const latlng = L.latLng(latitude, longitude);
-        if (mapRef.current) mapRef.current.setView(latlng, 15);
+        const map = mapRef.current;
+        if (map) map.setView(latlng, 15);
 
         toast.dismiss();
         toast.success('📍 Location found', { duration: 2000 });
 
         setMarkers((prev) => {
+          // If an origin marker already exists, move it. Otherwise, create a new one.
           if (prev.origin) {
-            // If marker exists, just move it (dragend listener persists)
             prev.origin.setLatLng(latlng);
           } else {
-            // If new, create it with drag enabled
-            const newOrigin = createMarker(latlng, 'origin', true);
-            return { ...prev, origin: newOrigin };
+            const newOriginMarker = createMarker(latlng, 'origin', true);
+            return { ...prev, origin: newOriginMarker };
           }
           return { ...prev };
         });
@@ -214,7 +224,7 @@ export default function MapMode({
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
-  }, [createMarker, reverseGeocode]);
+  }, [createMarker, reverseGeocode]); // Dependencies are correct
 
   // -------------------------------------------------------------------
   // Effect: Initialize Map
@@ -260,53 +270,49 @@ export default function MapMode({
     if (!map) return;
 
     const onClick = (e: L.LeafletMouseEvent) => {
-      setMarkers((prev) => {
-        const updated = { ...prev };
-
-        if (isOriginMode) {
-          // --- ORIGIN MODE LOGIC ---
+      if (isOriginMode) {
+        // --- ORIGIN MODE LOGIC ---
+        setMarkers((prev) => {
+          const updated = { ...prev };
           if (updated.origin) {
-            // Move existing marker (dragend listener persists)
-            updated.origin.setLatLng(e.latlng);
+            map.removeLayer(updated.origin); // Remove the old marker from the map
+            updated.origin = createMarker(e.latlng, 'origin', true); // Create a new one
           } else {
-            // Create new marker with dragend listener
             updated.origin = createMarker(e.latlng, 'origin', true);
           }
-          
-          reverseGeocode(e.latlng, 'origin');
-          toast.dismiss();
-          toast.success('📍 Origin updated');
-          setIsOriginMode(false); // Exit origin mode after setting location
-
-          // CRITICAL: Redraw route line if destination is set
+          // Redraw route line if destination is set
           if (updated.origin && updated.destination) {
             drawRouteLine(updated.origin.getLatLng(), updated.destination.getLatLng());
           }
-        } else {
-          // --- DESTINATION MODE LOGIC (Default) ---
-          // Remove old destination marker immediately
+          return updated;
+        });
+
+        reverseGeocode(e.latlng, 'origin');
+        toast.dismiss();
+        toast.success('📍 Origin updated');
+        setIsOriginMode(false); // Exit origin mode after setting
+      } else {
+        // --- DESTINATION MODE LOGIC (Default) ---
+        setMarkers((prev) => {
+          const updated = { ...prev };
+          // Remove old destination marker
           if (destinationRef.current) {
             map.removeLayer(destinationRef.current);
-            destinationRef.current = null;
           }
-
           // Create new destination marker
           const newDest = createMarker(e.latlng, 'destination');
           destinationRef.current = newDest;
           updated.destination = newDest;
 
-          reverseGeocode(e.latlng, 'destination');
-          toast.dismiss();
-          toast.success('🎯 Destination set');
-
-          // Draw route line (removing old one)
           if (updated.origin && updated.destination) {
             drawRouteLine(updated.origin.getLatLng(), updated.destination.getLatLng());
           }
-        }
-
-        return updated;
-      });
+          return updated;
+        });
+        reverseGeocode(e.latlng, 'destination');
+        toast.dismiss();
+        toast.success('🎯 Destination set');
+      }
     };
 
     map.on('click', onClick);
