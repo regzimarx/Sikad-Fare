@@ -11,18 +11,21 @@ import GasPriceSelector from './form/GasPriceSelector';
 import PassengerSelector from './form/PassengerSelector';
 import BaggageSelector from './form/BaggageSelector';
 
+// --- Configuration Constants ---
 const MAP_CONFIG = {
   CENTER: [7.232, 124.365] as [number, number],
   ZOOM: 12,
   MAX_ZOOM: 19,
 };
 
+// Calculate dynamic panel heights based on viewport for better UX
 const PANEL_HEIGHTS = {
   COLLAPSED: 240,
   EXPANDED: typeof window !== 'undefined' ? window.innerHeight * 0.55 : 400,
   FULL: typeof window !== 'undefined' ? window.innerHeight * 0.7 : 500,
 };
 
+// Custom icons for visual clarity on the map
 const MARKER_ICONS = {
   origin: L.icon({
     iconUrl:
@@ -50,6 +53,7 @@ interface MapModeProps {
   onPassengerTypeChange: (type: Partial<PassengerType>) => void;
   onBaggageChange: (value: boolean) => void;
   onCalculate: (result: any) => void;
+  onError: (error: string) => void;
 }
 
 export default function MapMode({
@@ -60,16 +64,18 @@ export default function MapMode({
   onPassengerTypeChange,
   onBaggageChange,
   onCalculate,
+  onError,
 }: MapModeProps) {
+  // --- Refs for DOM/Map Instances ---
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-
   const routeLineRef = useRef<L.Polyline | null>(null);
   const destinationRef = useRef<L.Marker | null>(null);
 
+  // --- State Management ---
   const [isMapLoading, setIsMapLoading] = useState(true);
-  const [isOriginMode, setIsOriginMode] = useState(false);
+  const [isOriginMode, setIsOriginMode] = useState(false); // Controls floating button state
   const [isPanelExpanded, setIsPanelExpanded] = useState(false);
   const [markers, setMarkers] = useState<{ origin: L.Marker | null; destination: L.Marker | null }>({
     origin: null,
@@ -78,26 +84,58 @@ export default function MapMode({
   const [fromText, setFromText] = useState('');
   const [toText, setToText] = useState('');
 
+  // -------------------------------------------------------------------
+  // Function: createMarker
+  // Purpose: Creates a Leaflet marker and handles the CRITICAL 'dragend' event for the origin.
+  // Principle: Ensure user interactions (like dragging) update the source of truth (state/text).
+  // -------------------------------------------------------------------
   const createMarker = useCallback(
     (latlng: L.LatLng, type: 'origin' | 'destination', draggable = false) => {
       if (!mapRef.current) return null;
+
       const marker = L.marker(latlng, { icon: MARKER_ICONS[type], draggable }).addTo(mapRef.current);
+
       if (type === 'destination') marker.bindPopup('🎯 Destination');
+
+      // Add dragend listener ONLY for the draggable origin marker
+      if (type === 'origin' && draggable) {
+        marker.on('dragend', (e) => {
+          const newLatLng = e.target.getLatLng();
+          setFromText(`Lat: ${newLatLng.lat.toFixed(4)}, Lng: ${newLatLng.lng.toFixed(4)}`);
+          toast.dismiss();
+          toast.success('📍 Origin moved', { duration: 1500 });
+
+          // Update markers state and redraw route line
+          setMarkers((prev) => {
+             const updated = { ...prev, origin: e.target };
+             if (updated.destination) {
+                drawRouteLine(updated.origin!.getLatLng(), updated.destination.getLatLng());
+             }
+             return updated;
+          });
+        });
+      }
+
       return marker;
     },
-    []
+    [] // Dependencies intentionally kept minimal, relying on state updates for re-render
   );
 
+  // -------------------------------------------------------------------
+  // Function: drawRouteLine
+  // Purpose: Draws or redraws the polyline between origin and destination.
+  // Principle: Centralize side effects (map manipulation) into specific functions.
+  // -------------------------------------------------------------------
   const drawRouteLine = useCallback((origin: L.LatLng, dest: L.LatLng) => {
     if (!mapRef.current) return;
 
-    // remove previous line if it exists
+    // Remove previous line if it exists
     if (routeLineRef.current) {
       routeLineRef.current.remove();
       routeLineRef.current = null;
     }
 
-    // create new line
+    // Create new line
     const newLine = L.polyline([origin, dest], {
       color: '#000',
       weight: 3,
@@ -107,6 +145,11 @@ export default function MapMode({
     routeLineRef.current = newLine;
   }, []);
 
+  // -------------------------------------------------------------------
+  // Function: getUserLocation
+  // Purpose: Finds and sets the user's current location as the default origin.
+  // Principle: Abstract complex browser APIs (Geolocation) into a reusable hook.
+  // -------------------------------------------------------------------
   const getUserLocation = useCallback(() => {
     if (!navigator.geolocation) {
       toast.error('Geolocation not supported');
@@ -124,8 +167,10 @@ export default function MapMode({
 
         setMarkers((prev) => {
           if (prev.origin) {
+            // If marker exists, just move it (dragend listener persists)
             prev.origin.setLatLng(latlng);
           } else {
+            // If new, create it with drag enabled
             const newOrigin = createMarker(latlng, 'origin', true);
             return { ...prev, origin: newOrigin };
           }
@@ -141,7 +186,11 @@ export default function MapMode({
     );
   }, [createMarker]);
 
-  // Initialize map
+  // -------------------------------------------------------------------
+  // Effect: Initialize Map
+  // Purpose: Sets up the Leaflet map instance and tile layer.
+  // Principle: Use useEffect for mounting and cleanup of external libraries (Leaflet).
+  // -------------------------------------------------------------------
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
@@ -162,21 +211,20 @@ export default function MapMode({
 
     mapRef.current = map;
 
+    // Cleanup function
     return () => {
-      if (routeLineRef.current) {
-        routeLineRef.current.remove();
-        routeLineRef.current = null;
-      }
-      if (destinationRef.current) {
-        destinationRef.current.remove();
-        destinationRef.current = null;
-      }
+      if (routeLineRef.current) routeLineRef.current.remove();
+      if (destinationRef.current) destinationRef.current.remove();
       map.remove();
       mapRef.current = null;
     };
   }, [getUserLocation]);
 
-  // Handle map click (ensures only one destination and line)
+  // -------------------------------------------------------------------
+  // Effect: Handle Map Click (Origin and Destination Setting)
+  // Purpose: Listens for map clicks and updates the correct marker based on isOriginMode.
+  // Principle: Ensure state updates are atomic and side effects (map drawing) follow.
+  // -------------------------------------------------------------------
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -186,13 +234,27 @@ export default function MapMode({
         const updated = { ...prev };
 
         if (isOriginMode) {
-          if (updated.origin) updated.origin.setLatLng(e.latlng);
-          else updated.origin = createMarker(e.latlng, 'origin', true);
+          // --- ORIGIN MODE LOGIC ---
+          if (updated.origin) {
+            // Move existing marker (dragend listener persists)
+            updated.origin.setLatLng(e.latlng);
+          } else {
+            // Create new marker with dragend listener
+            updated.origin = createMarker(e.latlng, 'origin', true);
+          }
+          
+          // Update text field
           setFromText(`Lat: ${e.latlng.lat.toFixed(4)}, Lng: ${e.latlng.lng.toFixed(4)}`);
           toast.dismiss();
           toast.success('📍 Origin updated');
-          setIsOriginMode(false);
+          setIsOriginMode(false); // Exit origin mode after setting location
+
+          // CRITICAL: Redraw route line if destination is set
+          if (updated.origin && updated.destination) {
+            drawRouteLine(updated.origin.getLatLng(), updated.destination.getLatLng());
+          }
         } else {
+          // --- DESTINATION MODE LOGIC (Default) ---
           // Remove old destination marker immediately
           if (destinationRef.current) {
             map.removeLayer(destinationRef.current);
@@ -224,6 +286,11 @@ export default function MapMode({
     };
   }, [isOriginMode, createMarker, drawRouteLine]);
 
+  // -------------------------------------------------------------------
+  // Function: handleCalculate
+  // Purpose: Calculates the final fare and passes the result to the parent component.
+  // Principle: Decouple business logic (fare calculation) from presentation (UI).
+  // -------------------------------------------------------------------
   const handleCalculate = useCallback(() => {
     if (!markers.origin || !markers.destination) {
       toast.error('Please set both origin and destination');
@@ -251,6 +318,11 @@ export default function MapMode({
     toast.success('✅ Fare calculated!');
   }, [markers, gasPrice, passengerType, hasBaggage, onCalculate]);
 
+  // -------------------------------------------------------------------
+  // Hook: useDrag for Panel
+  // Purpose: Implements the draggable, snap-to-height behavior of the bottom panel.
+  // Principle: Use specialized hooks (like use-gesture) for complex UI interactions.
+  // -------------------------------------------------------------------
   const bind = useDrag(
     ({ down, movement: [, my], velocity: [, vy], direction: [, dy], memo }) => {
       const panel = panelRef.current;
@@ -279,10 +351,12 @@ export default function MapMode({
     { axis: 'y' }
   );
 
+  // --- Render ---
   return (
     <div className="fixed inset-0 bg-gray-200">
       <div ref={mapContainerRef} className="absolute inset-0 z-0" />
 
+      {/* Map Loading State */}
       {isMapLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-200/80 z-10">
           <FaSpinner className="animate-spin text-gray-700 text-xl" />
@@ -294,7 +368,13 @@ export default function MapMode({
       <div className="absolute bottom-[250px] right-4 z-20 flex flex-col gap-2">
         <button
           type="button"
-          onClick={() => setIsOriginMode(!isOriginMode)}
+          onClick={() => {
+            setIsOriginMode(!isOriginMode);
+            toast.dismiss();
+            if (!isOriginMode) {
+              toast('Tap on the map to set a new Origin', { icon: '👆' });
+            }
+          }}
           className={`w-12 h-12 rounded-full shadow-lg text-2xl transition ${
             isOriginMode ? 'bg-yellow-400 text-black' : 'bg-white hover:bg-gray-100'
           }`}
@@ -329,6 +409,7 @@ export default function MapMode({
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-6 pt-6 overflow-y-auto">
+              {/* Expanded Panel Details */}
               <div className="space-y-4">
                 <div>
                   <label className="text-xs font-bold text-gray-600 flex items-center gap-1 mb-1">
