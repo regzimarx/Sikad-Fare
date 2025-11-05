@@ -81,8 +81,38 @@ export default function MapMode({
     origin: null,
     destination: null,
   });
-  const [fromText, setFromText] = useState('');
-  const [toText, setToText] = useState('');
+  const [fromText, setFromText] = useState('Getting location...');
+  const [toText, setToText] = useState('Tap on map');
+  const [isGeocodingOrigin, setIsGeocodingOrigin] = useState(false);
+  const [isGeocodingDest, setIsGeocodingDest] = useState(false);
+
+  // -------------------------------------------------------------------
+  // Function: reverseGeocode
+  // Purpose: Converts latitude/longitude into a human-readable address using Nominatim API.
+  // Principle: Encapsulate external API calls for reusability and clarity.
+  // -------------------------------------------------------------------
+  const reverseGeocode = useCallback(async (latlng: L.LatLng, type: 'origin' | 'destination') => {
+    const setLoading = type === 'origin' ? setIsGeocodingOrigin : setIsGeocodingDest;
+    const setText = type === 'origin' ? setFromText : setToText;
+    const fallbackText = `Lat: ${latlng.lat.toFixed(4)}, Lng: ${latlng.lng.toFixed(4)}`;
+
+    setLoading(true);
+    setText('Fetching address...');
+
+    try {
+      const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latlng.lat}&lon=${latlng.lng}`);
+      const data = await response.json();
+      // Use display_name, but fallback to a shorter name if too long, or coordinates on failure
+      const address = data.display_name ? (data.display_name.length > 50 ? `${data.name} ${data.address.city || data.address.town}` : data.display_name) : fallbackText;
+      setText(address);
+    } catch (error) {
+      console.error("Reverse geocoding failed:", error);
+      setText(fallbackText);
+      toast.error("Could not fetch address.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   // -------------------------------------------------------------------
   // Function: createMarker
@@ -101,7 +131,7 @@ export default function MapMode({
       if (type === 'origin' && draggable) {
         marker.on('dragend', (e) => {
           const newLatLng = e.target.getLatLng();
-          setFromText(`Lat: ${newLatLng.lat.toFixed(4)}, Lng: ${newLatLng.lng.toFixed(4)}`);
+          reverseGeocode(newLatLng, 'origin');
           toast.dismiss();
           toast.success('📍 Origin moved', { duration: 1500 });
 
@@ -118,7 +148,7 @@ export default function MapMode({
 
       return marker;
     },
-    [] // Dependencies intentionally kept minimal, relying on state updates for re-render
+    [reverseGeocode] // Add reverseGeocode to dependency array
   );
 
   // -------------------------------------------------------------------
@@ -177,14 +207,14 @@ export default function MapMode({
           return { ...prev };
         });
 
-        setFromText(`Lat: ${latitude.toFixed(4)}, Lng: ${longitude.toFixed(4)}`);
+        reverseGeocode(latlng, 'origin');
       },
       () => {
         toast.error('Unable to retrieve location');
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
-  }, [createMarker]);
+  }, [createMarker, reverseGeocode]);
 
   // -------------------------------------------------------------------
   // Effect: Initialize Map
@@ -243,8 +273,7 @@ export default function MapMode({
             updated.origin = createMarker(e.latlng, 'origin', true);
           }
           
-          // Update text field
-          setFromText(`Lat: ${e.latlng.lat.toFixed(4)}, Lng: ${e.latlng.lng.toFixed(4)}`);
+          reverseGeocode(e.latlng, 'origin');
           toast.dismiss();
           toast.success('📍 Origin updated');
           setIsOriginMode(false); // Exit origin mode after setting location
@@ -266,7 +295,7 @@ export default function MapMode({
           destinationRef.current = newDest;
           updated.destination = newDest;
 
-          setToText(`Lat: ${e.latlng.lat.toFixed(4)}, Lng: ${e.latlng.lng.toFixed(4)}`);
+          reverseGeocode(e.latlng, 'destination');
           toast.dismiss();
           toast.success('🎯 Destination set');
 
@@ -284,7 +313,7 @@ export default function MapMode({
     return () => {
       map.off('click', onClick);
     };
-  }, [isOriginMode, createMarker, drawRouteLine]);
+  }, [isOriginMode, createMarker, drawRouteLine, reverseGeocode]);
 
   // -------------------------------------------------------------------
   // Function: handleCalculate
@@ -391,7 +420,11 @@ export default function MapMode({
         style={{ height: `${PANEL_HEIGHTS.COLLAPSED}px` }}
       >
         <div className="p-6 flex flex-col h-full relative">
-          <div {...bind()} className="absolute top-0 left-0 right-0 h-8 cursor-grab" />
+          <div
+            {...bind()}
+            className="absolute top-0 left-0 right-0 h-8 cursor-grab"
+            style={{ touchAction: 'none' }}
+          />
           <div className="absolute top-3 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-gray-300 rounded-full pointer-events-none" />
 
           {!isPanelExpanded ? (
@@ -419,7 +452,7 @@ export default function MapMode({
                     type="text"
                     disabled
                     className="w-full p-3 border border-gray-200 rounded-lg bg-gray-50 text-sm"
-                    value={fromText || 'Getting location...'}
+                    value={fromText}
                   />
                 </div>
                 <GasPriceSelector gasPrice={gasPrice} onChange={onGasPriceChange} />
@@ -435,7 +468,7 @@ export default function MapMode({
                     type="text"
                     disabled
                     className="w-full p-3 border border-gray-200 rounded-lg bg-gray-50 text-sm"
-                    value={toText || 'Tap on map'}
+                    value={toText}
                   />
                 </div>
                 <BaggageSelector hasBaggage={hasBaggage} onChange={onBaggageChange} />
