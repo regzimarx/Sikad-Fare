@@ -57,7 +57,7 @@ export default function FareCalculator() {
     <div className="h-screen bg-white flex flex-col relative overflow-hidden">
       <div className="flex-grow flex flex-col overflow-y-auto pb-[260px]">
         {/* Top Mode Toggle */}
-        <div className="p-4 pt-8">
+        <div className="p-4 pt-8 relative z-50">
           <ModeToggle mode={state.mode} onModeChange={setMode} />
         </div>
 
