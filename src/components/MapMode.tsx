@@ -5,11 +5,13 @@ import { useDrag } from '@use-gesture/react';
 import { FaSpinner } from 'react-icons/fa';
 import L from 'leaflet';
 import toast from 'react-hot-toast';
-import { PassengerType } from '../lib/types';
+import { PassengerType, FareCalculation } from '../lib/types';
 import { calculateMapFare, haversineDistance } from '../lib/fareCalculations';
 import GasPriceSelector from './form/GasPriceSelector';
 import PassengerSelector from './form/PassengerSelector';
 import BaggageSelector from './form/BaggageSelector';
+import Modal from './Modal';
+import FareResult from './FareResult';
 
 // --- Configuration Constants ---
 const MAP_CONFIG = {
@@ -85,6 +87,8 @@ export default function MapMode({
   const [toText, setToText] = useState('Tap on map');
   const [isGeocodingOrigin, setIsGeocodingOrigin] = useState(false);
   const [isGeocodingDest, setIsGeocodingDest] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [fareResult, setFareResult] = useState<FareCalculation | null>(null);
 
   // -------------------------------------------------------------------
   // Function: reverseGeocode
@@ -337,7 +341,7 @@ export default function MapMode({
     const distKm = haversineDistance(origin.lat, origin.lng, dest.lat, dest.lng);
     const result = calculateMapFare(distKm, gasPrice, passengerType, hasBaggage);
 
-    onCalculate({
+    const finalResult: FareCalculation = {
       fare: result.fare,
       routeName: 'Map Route',
       distance: result.estimatedRoadDist,
@@ -347,10 +351,12 @@ export default function MapMode({
       regularFare: result.regularFare,
       studentFare: result.studentFare,
       rateUsed: result.rateUsed,
-    });
+    };
 
+    onCalculate(finalResult);
+    setFareResult(finalResult);
+    setIsModalOpen(true);
     toast.dismiss();
-    toast.success('✅ Fare calculated!');
   }, [markers, gasPrice, passengerType, hasBaggage, onCalculate]);
 
   // -------------------------------------------------------------------
@@ -490,6 +496,10 @@ export default function MapMode({
           )}
         </div>
       </div>
+
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
+        {fareResult && <FareResult result={fareResult} />}
+      </Modal>
     </div>
   );
 }

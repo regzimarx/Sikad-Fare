@@ -91,13 +91,15 @@ export function calculateMapFare(
     studentFare += surcharge;
   }
   
-  // Add baggage fee
+  // Determine fare based on passenger type and quantity FIRST
+  let fare = passengerType.type === 'student' 
+    ? studentFare * passengerType.quantity 
+    : regularFare * passengerType.quantity;
+
+  // Add baggage fee AFTER calculating total passenger fare
   if (hasBaggage) {
-    regularFare += 10;
-    studentFare += 10;
+    fare += 10;
   }
-  
-  const fare = passengerType.type === 'student' ? studentFare * passengerType.quantity : regularFare * passengerType.quantity;
   
   return {
     fare,
