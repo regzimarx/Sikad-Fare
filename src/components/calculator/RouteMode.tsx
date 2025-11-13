@@ -2,11 +2,11 @@
 
 import React from 'react';
 import toast from 'react-hot-toast';
-import LocationSelector from './form/LocationSelector';
-import GasPriceSelector from './form/GasPriceSelector';
-import PassengerSelector from './form/PassengerSelector';
-import BaggageSelector from './form/BaggageSelector';
-import { midsayapProper, outsideMidsayap } from '../lib/routeData';
+import LocationSelector from '../form/LocationSelector';
+import GasPriceSelector from '../form/GasPriceSelector';
+import PassengerSelector from '../form/PassengerSelector';
+import BaggageSelector from '../form/BaggageSelector';
+import { midsayapProper, outsideMidsayap } from '../../lib/routeData';
 
 // Define the types for the props this component will receive
 interface RouteModeProps {

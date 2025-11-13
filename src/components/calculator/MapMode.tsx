@@ -5,16 +5,16 @@ import { useDrag } from '@use-gesture/react';
 import { FaSpinner } from 'react-icons/fa';
 import L from 'leaflet';
 import toast from 'react-hot-toast';
-import { PassengerType, FareCalculation } from '../lib/types';
-import { calculateMapFare, haversineDistance } from '../lib/fareCalculations';
-import GasPriceSelector from './form/GasPriceSelector';
-import PassengerSelector from './form/PassengerSelector';
-import BaggageSelector from './form/BaggageSelector';
-import Modal from './Modal';
-import FareResult from './FareResult';
+import { PassengerType, FareCalculation } from '../../lib/types';
+import { calculateMapFare, haversineDistance } from '../../lib/fareCalculations';
+import GasPriceSelector from '../form/GasPriceSelector';
+import PassengerSelector from '../form/PassengerSelector';
+import BaggageSelector from '../form/BaggageSelector';
+import Modal from '../Modal';
+import FareResult from '../FareResult';
 
 // --- Firebase Service Imports ---
-import { logFareCalculation } from '../services/analytics';
+import { logFareCalculation } from '../../services/analytics';
 
 // --- Configuration Constants ---
 const MAP_CONFIG = {

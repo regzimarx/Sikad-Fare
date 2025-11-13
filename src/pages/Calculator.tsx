@@ -6,10 +6,10 @@ import toast from 'react-hot-toast';
 import { useFareCalculator } from '../hooks/useFareCalculator';
 import ModeToggle from '../components/ModeToggle';
 import BottomNavbar from '../components/BottomNavbar';
-import { CommunityFeed } from '../components/community/Feed';
+import SuggestionsPage from './Suggestions'; 
 
 // --- Firebase Service Imports ---
-import { getFares, Fare } from '../services/fares'; // Corrected path if it was wrong
+import { getFares, Fare } from '../services/fares';
 import { logFareCalculation } from '../services/analytics';
 import { getAppConfig, AppConfig } from '../services/config';
 import { FaTimes } from 'react-icons/fa';
@@ -17,16 +17,16 @@ import { FaTimes } from 'react-icons/fa';
 import { FareCalculation } from '../lib/types';
 
 // Dynamically import MapMode to prevent SSR issues with Leaflet
-const MapMode = dynamic(() => import('../components/MapMode'), {
+const MapMode = dynamic(() => import('../components/calculator/MapMode'), {
   ssr: false,
 });
 
 // RouteMode is now a simpler component, so we can import it directly
-import RouteMode from '../components/RouteMode';
+import RouteMode from '../components/calculator/RouteMode';
 
 export default function Calculator() {
   const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
-  const [activeTab, setActiveTab] = useState<'calculator' | 'community' | 'security'>('calculator');
+  const [activeTab, setActiveTab] = useState<'calculator' | 'security' | 'suggestion'>('calculator');
 
   const {
     state,
@@ -125,8 +125,8 @@ export default function Calculator() {
             <MapMode gasPrice={state.gasPrice} passengerType={state.passengerType} hasBaggage={state.hasBaggage} onGasPriceChange={setGasPrice} onPassengerTypeChange={setPassengerType} onBaggageChange={setHasBaggage} onCalculate={setMapResult} onError={setError} />
           )}
         </>
-      ) : activeTab === 'community' ? (
-        <CommunityFeed />
+      ) : activeTab === 'suggestion' ? (
+        <SuggestionsPage />
       ) : null}
 
 
@@ -137,7 +137,7 @@ export default function Calculator() {
           onItemClick={(item) => {
             if (item === 'security') {
               toast('Coming soon!');
-            } else if (item === 'calculator' || item === 'community') {
+            } else if (item === 'calculator' || item === 'suggestion') {
               setActiveTab(item);
             }
             // Ignore 'route' and 'map' clicks
