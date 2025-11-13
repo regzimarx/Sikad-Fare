@@ -1,5 +1,5 @@
-import FareCalculator from '../components/RouteMode';
+import Calculator from '../pages/Calculator';
 
 export default function Home() {
-  return <FareCalculator />;
+  return <Calculator />;
 }

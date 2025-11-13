@@ -13,6 +13,9 @@ import BaggageSelector from './form/BaggageSelector';
 import Modal from './Modal';
 import FareResult from './FareResult';
 
+// --- Firebase Service Imports ---
+import { logFareCalculation } from '../services/analytics';
+
 // --- Configuration Constants ---
 const MAP_CONFIG = {
   CENTER: [7.232, 124.365] as [number, number],
@@ -357,13 +360,13 @@ export default function MapMode({
     setFareResult(finalResult);
     setIsModalOpen(true);
     toast.dismiss();
-  }, [markers, gasPrice, passengerType, hasBaggage, onCalculate]);
 
-  // -------------------------------------------------------------------
-  // Hook: useDrag for Panel
-  // Purpose: Implements the draggable, snap-to-height behavior of the bottom panel.
-  // Principle: Use specialized hooks (like use-gesture) for complex UI interactions.
-  // -------------------------------------------------------------------
+    // --- Log Event to Firebase Analytics ---
+    // We use the geocoded text for more readable analytics data.
+    const originText = fromText.includes('Lat:') ? 'GPS Coordinates' : fromText;
+    const destText = toText.includes('Lat:') ? 'GPS Coordinates' : toText;
+    logFareCalculation(originText, destText, 'map');
+  }, [markers, gasPrice, passengerType, hasBaggage, onCalculate]);
   const bind = useDrag(
     ({ down, movement: [, my], velocity: [, vy], direction: [, dy], memo }) => {
       const panel = panelRef.current;

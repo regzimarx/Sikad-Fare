@@ -49,13 +49,13 @@ export function useFareCalculator() {
     if (!origin || !destination) {
       toast.error('Please select both origin and destination');
       setState(prev => ({ ...prev, result: null }));
-      return;
+      return null;
     }
 
     if (origin === destination) {
       toast.error('Origin and destination cannot be the same');
       setState(prev => ({ ...prev, result: null }));
-      return;
+      return null;
     }
 
     // Find route
@@ -80,13 +80,13 @@ export function useFareCalculator() {
       };
 
       setState(prev => ({ ...prev, result }));
-      return;
+      return result;
     }
 
     if (!route) {
       toast.error('Route not found. Please use Map mode for custom routes.');
       setState(prev => ({ ...prev, result: null }));
-      return;
+      return null;
     }
 
     // Calculate fare
@@ -106,6 +106,7 @@ export function useFareCalculator() {
     };
 
     setState(prev => ({ ...prev, result }));
+    return result;
   }, [state]);
 
   const setMapResult = useCallback((result: FareCalculation) => {

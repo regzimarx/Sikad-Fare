@@ -11,6 +11,7 @@
   "dependencies": {
     "@ducanh2912/next-pwa": "^10.2.9",
     "@use-gesture/react": "^10.3.1",
+    "firebase": "^12.5.0",
     "flowbite": "^3.1.2",
     "leaflet": "^1.9.4",
     "next": "14.2.5",
