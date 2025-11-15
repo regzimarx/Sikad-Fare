@@ -35,7 +35,7 @@ const formatPassengerType = (type: PassengerType['type'], quantity: number) => {
   const baseString = typeMap[type] || 'Unknown';
 
   // Only pluralize 'student' and 'senior'
-  if (quantity > 1 && (type === 'student' || type === 'senior')) {
+  if (quantity > 1 && (type === 'student' || type === 'senior' || type === 'regular')) {
     return `${baseString}s`; // e.g., Students, Seniors
   }
   return baseString; // e.g., Regular, PWD
