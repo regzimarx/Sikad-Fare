@@ -23,6 +23,24 @@ interface RouteModeProps {
   };
 }
 
+// Helper to format passenger type for display
+const formatPassengerType = (type: PassengerType['type'], quantity: number) => {
+  const typeMap: Record<PassengerType['type'], string> = {
+    regular: 'Regular',
+    student: 'Student',
+    senior: 'Senior',
+    pwd: 'PWD',
+  };
+
+  const baseString = typeMap[type] || 'Unknown';
+
+  // Only pluralize 'student' and 'senior'
+  if (quantity > 1 && (type === 'student' || type === 'senior')) {
+    return `${baseString}s`; // e.g., Students, Seniors
+  }
+  return baseString; // e.g., Regular, PWD
+};
+
 export default function RouteMode({ state, handlers }: RouteModeProps) {
   const [isHistoryVisible, setIsHistoryVisible] = useState(false);
 
@@ -157,7 +175,7 @@ export default function RouteMode({ state, handlers }: RouteModeProps) {
                   </div>
                   <div className="mt-1.5 flex items-center text-xs text-gray-500">
                     <span title="Passenger Type & Quantity" className="flex items-center">
-                      👤 {item.passengerType.quantity} {item.passengerType.type}
+                      👤 {item.passengerType.quantity} {formatPassengerType(item.passengerType.type, item.passengerType.quantity)}
                     </span>
                     <span className="mx-2">&middot;</span>
                     <span title="Gas Price" className="flex items-center">

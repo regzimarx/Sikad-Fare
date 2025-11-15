@@ -11,7 +11,7 @@ export interface RouteMatrix {
 }
 
 export type PassengerType = {
-  type: 'student' | 'regular';
+  type: 'student' | 'regular' | 'senior' | 'pwd';
   quantity: number;
 };
 

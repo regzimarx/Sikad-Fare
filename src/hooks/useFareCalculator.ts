@@ -71,14 +71,17 @@ export function useFareCalculator() {
     setState(prev => ({ ...prev, hasBaggage }));
   }, []);
 
-  const addResultToHistory = useCallback((calculationResult: FareCalculation) => {
-    const newEntry: HistoryEntry = {
-      id: new Date().toISOString(), // Simple unique ID
-      ...calculationResult,
-    };
-    // Add to the beginning of the array and limit history size to 50
-    setState(prev => ({ ...prev, history: [newEntry, ...prev.history].slice(0, 50) }));
-  }, []);
+  const addResultToHistory = useCallback(
+    (calculationResult: Omit<FareCalculation, 'id'>) => {
+      const newEntry: HistoryEntry = {
+        id: new Date().toISOString(), // Simple unique ID
+        ...calculationResult,
+      };
+      // Add to the beginning of the array and limit history size to 50
+      setState(prev => ({ ...prev, history: [newEntry, ...prev.history].slice(0, 50) }));
+    },
+    []
+  );
 
   const calculateFare = useCallback(() => {
     const { origin, destination, gasPrice, passengerType, hasBaggage } = state;
