@@ -6,33 +6,20 @@ import { findRoute, normalizeName, midsayapProper } from '../lib/routeData';
 import { getFareByGasPrice } from '../lib/fareCalculations';
 import toast from 'react-hot-toast';
 
-const getInitialState = (): CalculatorState => {
-  let storedHistory: HistoryEntry[] = [];
-  if (typeof window !== 'undefined') {
-    try {
-      const item = window.localStorage.getItem('fareHistory');
-      storedHistory = item ? JSON.parse(item) : [];
-    } catch (error) {
-      console.error('Error reading history from localStorage', error);
-      storedHistory = [];
-    }
-  }
-
-  return {
-    mode: 'route',
-    origin: '',
-    destination: '',
-    gasPrice: 60,
-    passengerType: { type: 'student', quantity: 1 },
-    hasBaggage: false,
-    result: null,
-    error: null,
-    history: storedHistory,
-  };
+const initialCalculatorState: CalculatorState = {
+  mode: 'route',
+  origin: '',
+  destination: '',
+  gasPrice: 60,
+  passengerType: { type: 'student', quantity: 1 },
+  hasBaggage: false,
+  result: null,
+  error: null,
+  history: [], // Start with an empty history for server/client consistency
 };
 
 export function useFareCalculator() {
-  const [state, setState] = useState<CalculatorState>(getInitialState);
+  const [state, setState] = useState<CalculatorState>(initialCalculatorState);
 
   useEffect(() => {
     try {
@@ -41,6 +28,19 @@ export function useFareCalculator() {
       console.error('Error saving history to localStorage', error);
     }
   }, [state.history]);
+
+  // Effect to load history from localStorage only on the client-side after mounting
+  useEffect(() => {
+    try {
+      const item = window.localStorage.getItem('fareHistory');
+      if (item) {
+        const storedHistory = JSON.parse(item);
+        setState(prevState => ({ ...prevState, history: storedHistory }));
+      }
+    } catch (error) {
+      console.error('Error reading history from localStorage', error);
+    }
+  }, []); // Empty dependency array ensures this runs only once on mount
 
   const setMode = useCallback((mode: CalculationMode) => {
     setState(prev => ({ ...prev, mode, result: null }));
