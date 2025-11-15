@@ -47,7 +47,12 @@ export function useFareCalculator() {
   }, []);
 
   const setOrigin = useCallback((origin: string) => {
-    setState(prev => ({ ...prev, origin, destination: '' }));
+    setState(prev => {
+      // If the new origin is the same as the current destination, clear the destination.
+      // Otherwise, keep the destination.
+      const newDestination = origin === prev.destination ? '' : prev.destination;
+      return { ...prev, origin, destination: newDestination };
+    });
   }, []);
 
   const setDestination = useCallback((destination: string) => {
