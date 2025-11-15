@@ -132,12 +132,22 @@ export default function RouteMode({ state, handlers }: RouteModeProps) {
             <p className="text-gray-500 text-center py-8">No history yet.</p>
           ) : (
             state.history.map((item: HistoryEntry) => (
-              <div key={item.id} className="p-3 bg-white rounded-md border border-gray-200">
-                <p className="font-semibold text-gray-800">{item.routeName}</p>
-                <p className="text-sm text-gray-600">
-                  Fare: ₱{item.fare.toFixed(2)} | Distance:{' '}
-                  {typeof item.distance === 'number' ? `${item.distance.toFixed(2)}km` : item.distance}
-                </p>
+              <div key={item.id} className="p-3 bg-white rounded-lg border border-gray-200 shadow-sm">
+                <div className="flex justify-between items-start">
+                  <p className="font-semibold text-gray-800 text-base">{item.routeName}</p>
+                  <p className="text-lg font-bold text-gray-900">₱{item.fare.toFixed(2)}</p>
+                </div>
+                <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
+                  <span title="Passenger Type & Quantity" className="flex items-center gap-1">
+                    👤 {item.passengerType.quantity} {item.passengerType.type}
+                  </span>
+                  <span title="Gas Price" className="flex items-center gap-1">
+                    ⛽ ₱{item.gasPrice.toFixed(2)}/L
+                  </span>
+                  <span title="Baggage Included" className="flex items-center gap-1">
+                    🧳 {item.hasBaggage ? 'Yes' : 'No'}
+                  </span>
+                </div>
               </div>
             ))
           )}
