@@ -29,6 +29,10 @@ export interface FareCalculation {
   rateUsed?: number;
 }
 
+export interface HistoryEntry extends FareCalculation {
+  id: string;
+}
+
 export interface GasPriceOption {
   value: number;
   label: string;
@@ -48,4 +52,5 @@ export interface CalculatorState {
   hasBaggage: boolean;
   result: FareCalculation | null;
   error: string | null;
+  history: HistoryEntry[];
 }

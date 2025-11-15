@@ -1,28 +1,30 @@
 'use client';
 
-import React from 'react';
-import toast from 'react-hot-toast';
+import React, { useState } from 'react';
 import LocationSelector from '../form/LocationSelector';
 import GasPriceSelector from '../form/GasPriceSelector';
 import PassengerSelector from '../form/PassengerSelector';
 import BaggageSelector from '../form/BaggageSelector';
 import { midsayapProper, outsideMidsayap } from '../../lib/routeData';
+import { HistoryEntry, CalculatorState, PassengerType } from '../../lib/types';
 
 // Define the types for the props this component will receive
 interface RouteModeProps {
-  state: any; // The state object from useFareCalculator
+  state: CalculatorState; // The state object from useFareCalculator
   handlers: {
     setOrigin: (value: string) => void;
     setDestination: (value: string) => void;
     setGasPrice: (value: number) => void;
-    setPassengerType: (value: any) => void;
+    setPassengerType: (value: Partial<PassengerType>) => void;
     setHasBaggage: (value: boolean) => void;
     handleCalculate: () => void;
     reset: () => void;
+    clearHistory: () => void;
   };
 }
 
 export default function RouteMode({ state, handlers }: RouteModeProps) {
+  const [isHistoryVisible, setIsHistoryVisible] = useState(false);
 
   const getAvailableDestinations = () => {
     if (!state || !state.origin) return [];
@@ -84,7 +86,7 @@ export default function RouteMode({ state, handlers }: RouteModeProps) {
         {/* History Button - Top Right of Form */}
         <div className="absolute -top-12 left-5 z-40">
           <button
-            onClick={() => toast('Coming soon!')}
+            onClick={() => setIsHistoryVisible(true)}
             className="flex gap-2 px-4 py-2 text-sm font-semibold text-gray-600 hover:text-black"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -113,6 +115,46 @@ export default function RouteMode({ state, handlers }: RouteModeProps) {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* History Sheet */}
+      <div
+        className={`fixed bottom-[70px] left-0 right-0 bg-gray-50 rounded-t-3xl p-6 shadow-[0_-10px_30px_-15px_rgba(0,0,0,0.1)] border-t border-gray-200 z-40 transition-transform duration-300 ease-in-out ${
+          isHistoryVisible ? 'translate-y-0' : 'translate-y-full'
+        }`}
+      >
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold">Calculation History</h2>
+          <button onClick={() => setIsHistoryVisible(false)} className="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
+        </div>
+        <div className="space-y-4 max-h-[240px] overflow-y-auto pr-2">
+          {(state.history || []).length === 0 ? (
+            <p className="text-gray-500 text-center py-8">No history yet.</p>
+          ) : (
+            state.history.map((item: HistoryEntry) => (
+              <div key={item.id} className="p-3 bg-white rounded-md border border-gray-200">
+                <p className="font-semibold text-gray-800">{item.routeName}</p>
+                <p className="text-sm text-gray-600">
+                  Fare: ₱{item.fare.toFixed(2)} | Distance:{' '}
+                  {typeof item.distance === 'number' ? `${item.distance.toFixed(2)}km` : item.distance}
+                </p>
+              </div>
+            ))
+          )}
+        </div>
+        {(state.history || []).length > 0 && (
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            <button
+              onClick={() => {
+                handlers.clearHistory();
+                setIsHistoryVisible(false);
+              }}
+              className="w-full py-3 px-4 bg-red-500 text-white rounded-md font-semibold hover:bg-red-600 transition-colors"
+            >
+              Clear History
+            </button>
+          </div>
+        )}
       </div>
     </>
   );

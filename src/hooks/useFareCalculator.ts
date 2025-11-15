@@ -1,13 +1,24 @@
 "use client";
 
-import { useState, useCallback } from 'react';
-import { CalculatorState, CalculationMode, PassengerType, FareCalculation } from '../lib/types';
+import { useState, useCallback, useEffect } from 'react';
+import { CalculatorState, CalculationMode, PassengerType, FareCalculation, HistoryEntry } from '../lib/types';
 import { findRoute, normalizeName, midsayapProper } from '../lib/routeData';
 import { getFareByGasPrice } from '../lib/fareCalculations';
 import toast from 'react-hot-toast';
 
-export function useFareCalculator() {
-  const [state, setState] = useState<CalculatorState>({
+const getInitialState = (): CalculatorState => {
+  let storedHistory: HistoryEntry[] = [];
+  if (typeof window !== 'undefined') {
+    try {
+      const item = window.localStorage.getItem('fareHistory');
+      storedHistory = item ? JSON.parse(item) : [];
+    } catch (error) {
+      console.error('Error reading history from localStorage', error);
+      storedHistory = [];
+    }
+  }
+
+  return {
     mode: 'route',
     origin: '',
     destination: '',
@@ -16,7 +27,20 @@ export function useFareCalculator() {
     hasBaggage: false,
     result: null,
     error: null,
-  });
+    history: storedHistory,
+  };
+};
+
+export function useFareCalculator() {
+  const [state, setState] = useState<CalculatorState>(getInitialState);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('fareHistory', JSON.stringify(state.history));
+    } catch (error) {
+      console.error('Error saving history to localStorage', error);
+    }
+  }, [state.history]);
 
   const setMode = useCallback((mode: CalculationMode) => {
     setState(prev => ({ ...prev, mode, result: null }));
@@ -40,6 +64,15 @@ export function useFareCalculator() {
 
   const setHasBaggage = useCallback((hasBaggage: boolean) => {
     setState(prev => ({ ...prev, hasBaggage }));
+  }, []);
+
+  const addResultToHistory = useCallback((calculationResult: FareCalculation) => {
+    const newEntry: HistoryEntry = {
+      id: new Date().toISOString(), // Simple unique ID
+      ...calculationResult,
+    };
+    // Add to the beginning of the array and limit history size to 50
+    setState(prev => ({ ...prev, history: [newEntry, ...prev.history].slice(0, 50) }));
   }, []);
 
   const calculateFare = useCallback(() => {
@@ -80,6 +113,7 @@ export function useFareCalculator() {
       };
 
       setState(prev => ({ ...prev, result }));
+      addResultToHistory(result);
       return result;
     }
 
@@ -106,8 +140,9 @@ export function useFareCalculator() {
     };
 
     setState(prev => ({ ...prev, result }));
+    addResultToHistory(result);
     return result;
-  }, [state]);
+  }, [state, addResultToHistory]);
 
   const setMapResult = useCallback((result: FareCalculation) => {
     setState(prev => ({ ...prev, result }));
@@ -130,6 +165,11 @@ export function useFareCalculator() {
     }));
   }, []);
 
+  const clearHistory = useCallback(() => {
+    setState(prev => ({ ...prev, history: [] }));
+    toast.success('History cleared!');
+  }, []);
+
   return {
     state,
     setMode,
@@ -141,6 +181,7 @@ export function useFareCalculator() {
     calculateFare,
     setMapResult,
     reset,
-    setError
+    setError,
+    clearHistory,
   };
 }

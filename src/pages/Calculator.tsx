@@ -8,7 +8,6 @@ import ModeToggle from '../components/ModeToggle';
 import BottomNavbar from '../components/BottomNavbar';
 import SuggestionsPage from './Suggestions'; 
 
-// --- Firebase Service Imports ---
 import { getFares, Fare } from '../services/fares';
 import { logFareCalculation } from '../services/analytics';
 import { getAppConfig, AppConfig } from '../services/config';
@@ -39,7 +38,8 @@ export default function Calculator() {
     calculateFare,
     setMapResult,
     setError,
-    reset
+    reset,
+    clearHistory
   } = useFareCalculator();
 
   // --- Effect to Fetch App Configuration ---
@@ -112,15 +112,13 @@ export default function Calculator() {
       {/* Main Content Area */}
       {activeTab === 'calculator' ? (
         <>
-          {/* Top Mode Toggle */}
-          {/* Wrapper div to handle conditional styling */}
+
           <div className={`p-4 pt-8 relative z-50 ${state.mode === 'map' ? 'bg-transparent' : ''}`}>
             <ModeToggle mode={state.mode} onModeChange={setMode} />
           </div>
 
-          {/* Conditional Rendering of Modes */}
           {state.mode === 'route' ? (
-            <RouteMode state={state} handlers={{ setOrigin, setDestination, setGasPrice, setPassengerType, setHasBaggage, handleCalculate, reset }} />
+            <RouteMode state={state} handlers={{ setOrigin, setDestination, setGasPrice, setPassengerType, setHasBaggage, handleCalculate, reset, clearHistory }} />
           ) : (
             <MapMode gasPrice={state.gasPrice} passengerType={state.passengerType} hasBaggage={state.hasBaggage} onGasPriceChange={setGasPrice} onPassengerTypeChange={setPassengerType} onBaggageChange={setHasBaggage} onCalculate={setMapResult} onError={setError} />
           )}
@@ -140,7 +138,6 @@ export default function Calculator() {
             } else if (item === 'calculator' || item === 'suggestion') {
               setActiveTab(item);
             }
-            // Ignore 'route' and 'map' clicks
           }}
         />
       </div>
