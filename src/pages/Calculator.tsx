@@ -113,7 +113,7 @@ export default function Calculator() {
       {activeTab === 'calculator' ? (
         <>
 
-          <div className={`p-4 pt-8 relative z-50 ${state.mode === 'map' ? 'bg-transparent' : ''}`}>
+          <div className={`p-4 pt-8 relative z-20 ${state.mode === 'map' ? 'bg-transparent' : ''}`}>
             <ModeToggle mode={state.mode} onModeChange={setMode} />
           </div>
 

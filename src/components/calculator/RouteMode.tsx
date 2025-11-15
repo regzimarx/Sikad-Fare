@@ -118,53 +118,61 @@ export default function RouteMode({ state, handlers }: RouteModeProps) {
       </div>
 
       {/* History Sheet */}
+      {/* Backdrop for closing */}
+      {isHistoryVisible && (
+        <div
+          onClick={() => setIsHistoryVisible(false)}
+          className="fixed inset-0 bg-black/20 z-40"
+        />
+      )}
       <div
-        className={`fixed bottom-[70px] left-0 right-0 bg-gray-50 rounded-t-3xl p-6 shadow-[0_-10px_30px_-15px_rgba(0,0,0,0.1)] border-t border-gray-200 z-40 transition-transform duration-300 ease-in-out ${
+        className={`fixed bottom-[70px] left-0 right-0 bg-gray-50 rounded-t-3xl p-6 shadow-[0_-10px_30px_-15px_rgba(0,0,0,0.1)] border-t border-gray-200 z-50 transition-transform duration-300 ease-in-out ${
           isHistoryVisible ? 'translate-y-0' : 'translate-y-full'
         }`}
       >
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex justify-between items-center pb-4 border-b border-gray-200">
           <h2 className="text-xl font-bold">Calculation History</h2>
-          <button onClick={() => setIsHistoryVisible(false)} className="text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button>
-        </div>
-        <div className="space-y-4 max-h-[240px] overflow-y-auto pr-2">
-          {(state.history || []).length === 0 ? (
-            <p className="text-gray-500 text-center py-8">No history yet.</p>
-          ) : (
-            state.history.map((item: HistoryEntry) => (
-              <div key={item.id} className="p-3 bg-white rounded-lg border border-gray-200 shadow-sm">
-                <div className="flex justify-between items-start">
-                  <p className="font-semibold text-gray-800 text-base">{item.routeName}</p>
-                  <p className="text-lg font-bold text-gray-900">₱{item.fare.toFixed(2)}</p>
-                </div>
-                <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
-                  <span title="Passenger Type & Quantity" className="flex items-center gap-1">
-                    👤 {item.passengerType.quantity} {item.passengerType.type}
-                  </span>
-                  <span title="Gas Price" className="flex items-center gap-1">
-                    ⛽ ₱{item.gasPrice.toFixed(2)}/L
-                  </span>
-                  <span title="Baggage Included" className="flex items-center gap-1">
-                    🧳 {item.hasBaggage ? 'Yes' : 'No'}
-                  </span>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-        {(state.history || []).length > 0 && (
-          <div className="mt-4 pt-4 border-t border-gray-200">
+          {(state.history || []).length > 0 && (
             <button
               onClick={() => {
                 handlers.clearHistory();
                 setIsHistoryVisible(false);
               }}
-              className="w-full py-3 px-4 bg-red-500 text-white rounded-md font-semibold hover:bg-red-600 transition-colors"
+              className="py-1 px-3 text-xs font-semibold text-red-600 hover:bg-red-50 rounded-md transition-colors"
             >
-              Clear History
+              Clear All
             </button>
-          </div>
-        )}
+          )}
+        </div>
+        <div className="max-h-[340px] overflow-y-auto pt-4">
+          {(state.history || []).length === 0 ? (
+            <p className="text-gray-500 text-center py-8">No history yet.</p>
+          ) : (
+            <div className="space-y-4">
+              {state.history.map((item: HistoryEntry) => (
+                <div key={item.id} className="pb-4 border-b border-gray-200 last:border-b-0">
+                  <div className="flex justify-between items-start">
+                    <p className="font-semibold text-gray-800 text-base">{item.routeName}</p>
+                    <p className="text-lg font-bold text-gray-900">₱{item.fare.toFixed(2)}</p>
+                  </div>
+                  <div className="mt-1.5 flex items-center text-xs text-gray-500">
+                    <span title="Passenger Type & Quantity" className="flex items-center">
+                      👤 {item.passengerType.quantity} {item.passengerType.type}
+                    </span>
+                    <span className="mx-2">&middot;</span>
+                    <span title="Gas Price" className="flex items-center">
+                      ⛽ ₱{item.gasPrice.toFixed(2)}/L
+                    </span>
+                    <span className="mx-2">&middot;</span>
+                    <span title="Baggage Included" className="flex items-center">
+                      🧳 {item.hasBaggage ? 'Yes' : 'No'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </>
   );
