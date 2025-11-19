@@ -4,7 +4,7 @@ import React from 'react';
 import { FaCalculator, FaLightbulb, FaShieldAlt } from 'react-icons/fa';
 
 // Define the possible navigation items. This makes it easy to add/remove tabs in the future.
-type NavItem = 'calculator' | 'suggestion' | 'security';
+export type NavItem = 'calculator' | 'suggestion' | 'security';
 
 interface BottomNavbarProps {
   activeItem: NavItem;
