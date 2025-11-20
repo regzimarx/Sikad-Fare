@@ -12,7 +12,6 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Sikad Fare Calculator - Midsayap",
   description: "Tricycle fare calculator for Midsayap, Cotabato based on LGU Ordinance No. 536",
-  manifest: "/manifest.json",
   icons: {
     icon: [
       { url: '/favicon.ico', rel: 'icon', type: 'image/x-icon', sizes: 'any' },
