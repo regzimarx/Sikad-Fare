@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import BottomNavbar, { NavItem } from '../components/BottomNavbar';
+import ComingSoon from '../components/ComingSoon';
 import StatusPage from '../components/StatusPage';
 import { FaLightbulb } from 'react-icons/fa';
 import SuggestionComponent from '../pages/Suggestions'; // Import the SuggestionComponent
@@ -17,8 +18,8 @@ export default function Home() {
         return (
           <SuggestionComponent /> // Render the SuggestionComponent
         );
-      case 'security':
-        return <StatusPage featureName="Security" onNavigate={setActiveTab} />;
+      case 'security': // Render the ComingSoon component for the 'security' tab
+        return <ComingSoon featureName="Security" onNavigate={setActiveTab} />;
       default:
         return null;
     }
