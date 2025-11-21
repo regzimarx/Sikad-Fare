@@ -561,7 +561,7 @@ export default function MapMode({
         className={`fixed bottom-[70px] left-0 right-0 bg-gray-50 rounded-t-3xl p-6 shadow-[0_-10px_30px_-15px_rgba(0,0,0,0.1)] border-t border-gray-200 z-50 transition-transform duration-300 ease-in-out ${
           isHistoryVisible ? 'translate-y-0' : 'translate-y-full'
         } ${history.length === 0 ? 'h-auto' : ''}`}
-        style={{ height: history.length > 0 ? 'calc(100vh - 140px)' : undefined }}
+        style={{ maxHeight: 'calc(100vh - 240px)' }}
       >
         <div className="flex justify-between items-center pb-4 border-b border-gray-200">
           <h2 className="text-xl font-bold">Map Calculation History</h2>
@@ -577,7 +577,7 @@ export default function MapMode({
             </button>
           )}
         </div>
-        <div className="max-h-[calc(100vh_-_200px)] overflow-y-auto pt-4">
+        <div className="overflow-y-auto pt-4">
           {history.length === 0 ? (
             <p className="text-gray-500 text-center py-8">No map history yet.</p>
           ) : (
