@@ -41,6 +41,19 @@ const formatPassengerType = (type: PassengerType['type'], quantity: number) => {
   return baseString; // e.g., Regular, PWD
 };
 
+// Helper to format timestamp into a readable date and time string
+const formatTimestamp = (timestamp: string) => {
+  const date = new Date(timestamp);
+  return date.toLocaleString('en-US', {
+    month: 'short', // e.g., Nov
+    day: 'numeric', // e.g., 21
+    year: 'numeric', // e.g., 2025
+    hour: 'numeric', // e.g., 5
+    minute: '2-digit', // e.g., 08
+    hour12: true, // e.g., AM/PM
+  });
+};
+
 export default function RouteMode({ state, handlers }: RouteModeProps) {
   const [isHistoryVisible, setIsHistoryVisible] = useState(false);
 
@@ -170,8 +183,13 @@ export default function RouteMode({ state, handlers }: RouteModeProps) {
               {state.history.map((item: HistoryEntry) => (
                 <div key={item.id} className="pb-4 border-b border-gray-200 last:border-b-0">
                   <div className="flex justify-between items-start">
-                    <p className="font-semibold text-gray-800 text-base">{item.routeName}</p>
-                    <p className="text-lg font-bold text-gray-900">₱{item.fare.toFixed(2)}</p>
+                    <div>
+                      <p className="font-semibold text-gray-800 text-base">{item.routeName}</p>
+                      <p className="text-xs text-gray-400 mt-1">{formatTimestamp(item.timestamp)}</p>
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold text-gray-900 text-right">₱{item.fare.toFixed(2)}</p>
+                    </div>
                   </div>
                   <div className="mt-1.5 flex items-center text-xs text-gray-500">
                     <span title="Passenger Type & Quantity" className="flex items-center">

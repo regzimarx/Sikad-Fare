@@ -33,6 +33,7 @@ export interface FareCalculation {
 
 export interface HistoryEntry extends FareCalculation {
   id: string;
+  timestamp: string;
 }
 
 export interface GasPriceOption {

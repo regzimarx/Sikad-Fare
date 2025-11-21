@@ -75,6 +75,7 @@ export function useFareCalculator() {
     (calculationResult: Omit<FareCalculation, 'id'>) => {
       const newEntry: HistoryEntry = {
         id: new Date().toISOString(), // Simple unique ID
+        timestamp: new Date().toISOString(),
         ...calculationResult,
       };
       // Add to the beginning of the array and limit history size to 50
