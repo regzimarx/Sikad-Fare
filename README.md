@@ -1,114 +1,180 @@
+# 🚲 Sikad Fare Calculator
+
 <p align="center">
-  <a href="" rel="noopener">
- <img width=200px height=200px src="https://i.imgur.com/6wj0hh6.jpg" alt="Project logo"></a>
+
+<!-- Status / Metadata Badges -->
+
+<a href="#"><img src="https://img.shields.io/badge/status-active-success" alt="Status"></a> <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a> <a href="#"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="Pull Requests Welcome"></a>
+
+<!-- Tech Badges -->
+
+<br/>
+<a><img src="https://img.shields.io/badge/Next.js-000000?logo=nextdotjs&logoColor=white"></a>
+<a><img src="https://img.shields.io/badge/React-20232A?logo=react&logoColor=61DAFB"></a>
+<a><img src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white"></a>
+<a><img src="https://img.shields.io/badge/TailwindCSS-06B6D4?logo=tailwindcss&logoColor=white"></a>
+<a><img src="https://img.shields.io/badge/Firebase-FFCA28?logo=firebase&logoColor=black"></a>
+<a><img src="https://img.shields.io/badge/PWA-5A0FC8?logo=pwa&logoColor=white"></a>
+
 </p>
-
-<h3 align="center">sikad-fare</h3>
-
-<div align="center">
-
-[![Status](https://img.shields.io/badge/status-active-success.svg)]()
-[![GitHub Issues](https://img.shields.io/github/issues/kylelobo/The-Documentation-Compendium.svg)](https://github.com/kylelobo/The-Documentation-Compendium/issues)
-[![GitHub Pull Requests](https://img.shields.io/github/issues-pr/kylelobo/The-Documentation-Compendium.svg)](https://github.com/kylelobo/The-Documentation-Compendium/pulls)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](/LICENSE)
-
-</div>
 
 ---
 
-<p align="center"> Few lines describing your project.
-    <br> 
-</p>
+# 📌 Overview
 
-## 📝 Table of Contents
+A modern web application designed to help commuters and drivers calculate accurate **sikad** (pedicab/tricycle) fare prices. This tool ensures fairness, transparency, and convenience by providing fare estimations based on routes, baggage, passenger count, and more. Includes **PWA support** for offline use and mobile installation.
 
-- [About](#about)
-- [Getting Started](#getting_started)
-- [Deployment](#deployment)
-- [Usage](#usage)
-- [Built Using](#built_using)
-- [TODO](../TODO.md)
-- [Contributing](../CONTRIBUTING.md)
-- [Authors](#authors)
-- [Acknowledgments](#acknowledgement)
+### 📍 Community Impact & Background
 
-## 🧐 About <a name = "about"></a>
+This project is based on the official **Local Government Unit (LGU) ordinances of Midsayap** regarding Sikad fare pricing.
+As students, we took the initiative to create this tool in hopes of helping the **community of Midsayap**, especially with the **rampant issues and inconsistencies** in Sikad fare computation.
 
-Write about 1-2 paragraphs describing the purpose of your project.
+Our goal is to promote **fairness**, **awareness**, and **accessibility** by making fare information easier for both drivers and commuters.
 
-## 🏁 Getting Started <a name = "getting_started"></a>
+---
 
-These instructions will get you a copy of the project up and running on your local machine for development and testing purposes. See [deployment](#deployment) for notes on how to deploy the project on a live system.
+## 📌 Features
 
-### Prerequisites
+* **Route-Based Fare Calculation**
+  Compute fares using predefined local routes.
 
-What things you need to install the software and how to install them.
+* **Map-Based Fare Calculation (Planned)**
+  Select points on a map using Leaflet to auto-calculate the estimated fare.
 
-```
-Give examples
-```
+* **Baggage & Passenger Options**
+  Additional fees and fare adjustments for extra baggage or multiple riders.
 
-### Installing
+* **Gas Price Consideration**
+  Factor in current fuel prices to ensure updated fare logic.
 
-A step by step series of examples that tell you how to get a development env running.
+* **User Suggestions**
+  Submit suggestions for new routes or fare changes directly in the app (stored in Firebase).
 
-Say what the step will be
+* **PWA Support**
+  Install the app on your device for offline or mobile-friendly use.
 
-```
-Give the example
-```
+---
 
-And repeat
+## 🛠️ Technologies Used
 
-```
-until finished
-```
+### **Frontend**
 
-End with an example of getting some data out of the system or using it for a little demo.
+* Next.js
+* React
+* TypeScript
+* Tailwind CSS
+* Flowbite
+* Leaflet + React Leaflet
 
-## 🔧 Running the tests <a name = "tests"></a>
+### **Backend & Database**
 
-Explain how to run the automated tests for this system.
+* Firebase (Firestore, Analytics)
 
-### Break down into end to end tests
+### **PWA**
 
-Explain what these tests test and why
+* @ducanh2912/next-pwa
 
-```
-Give an example
-```
+---
 
-### And coding style tests
-
-Explain what these tests test and why
+## 📁 Project Structure
 
 ```
-Give an example
+.
+├── public/              # Static assets (images, icons, etc.)
+├── src/
+│   ├── app/             # Application pages & layout (Next.js App Router)
+│   ├── components/      
+│   │   ├── calculator/  # Fare calculator components
+│   │   ├── form/        # Input forms, selectors, etc.
+│   │   └── suggestions/ # Suggestion form & list components
+│   ├── hooks/           # Custom React hooks
+│   ├── lib/             # Firebase config, fare logic, utilities
+│   ├── pages/           # Legacy Next.js Pages (if used)
+│   └── services/        # Firebase & external API interactions
+├── next.config.js       # Next.js configuration
+├── tailwind.config.ts   # Tailwind CSS configuration
+└── package.json         # Dependencies & scripts
 ```
 
-## 🎈 Usage <a name="usage"></a>
+---
 
-Add notes about how to use the system.
+## 🚀 Installation
 
-## 🚀 Deployment <a name = "deployment"></a>
+### 1. Clone the repository
 
-Add additional notes about how to deploy this on a live system.
+```bash
+git clone <repository-url>
+cd clean-sikad-fare
+```
 
-## ⛏️ Built Using <a name = "built_using"></a>
+### 2. Install dependencies
 
-- [MongoDB](https://www.mongodb.com/) - Database
-- [Express](https://expressjs.com/) - Server Framework
-- [VueJs](https://vuejs.org/) - Web Framework
-- [NodeJs](https://nodejs.org/en/) - Server Environment
+```bash
+npm install
+# or
+yarn install
+```
 
-## ✍️ Authors <a name = "authors"></a>
+### 3. Add environment variables
 
-- [@kylelobo](https://github.com/kylelobo) - Idea & Initial work
+Create `.env.local`:
 
-See also the list of [contributors](https://github.com/kylelobo/The-Documentation-Compendium/contributors) who participated in this project.
+```
+NEXT_PUBLIC_FIREBASE_API_KEY=your_firebase_api_key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_firebase_auth_domain
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_firebase_project_id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_firebase_storage_bucket
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_firebase_messaging_sender_id
+NEXT_PUBLIC_FIREBASE_APP_ID=your_firebase_app_id
+NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=your_firebase_measurement_id
+```
 
-## 🎉 Acknowledgements <a name = "acknowledgement"></a>
+---
 
-- Hat tip to anyone whose code was used
-- Inspiration
-- References
+## 📜 Available Scripts
+
+| Command         | Description              |
+| --------------- | ------------------------ |
+| `npm run dev`   | Start development server |
+| `npm run build` | Build for production     |
+| `npm run start` | Run production build     |
+| `npm run lint`  | Lint the codebase        |
+
+---
+
+## 📖 Usage
+
+```bash
+npm run dev
+```
+
+Then open:
+➡️ **[http://localhost:3000](http://localhost:3000)**
+
+---
+
+## 🤝 Contributing
+
+1. Fork
+2. Create a branch
+3. Commit changes
+4. Push
+5. Open PR
+
+---
+
+## 📄 License
+
+MIT License — see `LICENSE` file.
+
+---
+
+## 📬 Contact
+
+**Your Name**
+📧 [vargasjanmatthew867@gmail.com](mailto:vargasjanmatthew867@gmail.com)
+
+Repository:
+🔗 [https://github.com/matty-kun/Sikad-Fare](https://github.com/matty-kun/Sikad-Fare)
+
+---
