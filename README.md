@@ -26,7 +26,7 @@ A modern web application designed to help commuters and drivers calculate accura
 
 ### 📍 Community Impact & Background
 
-This project is based on the official **Local Government Unit (LGU) ordinances of Midsayap** regarding Sikad fare pricing.
+This project is based on the official **Local Government Unit (LGU) ordinance No.536 of Midsayap** regarding Sikad fare pricing.
 As students, we took the initiative to create this tool in hopes of helping the **community of Midsayap**, especially with the **rampant issues and inconsistencies** in Sikad fare computation.
 
 Our goal is to promote **fairness**, **awareness**, and **accessibility** by making fare information easier for both drivers and commuters.
