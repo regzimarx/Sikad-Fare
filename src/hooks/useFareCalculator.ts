@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from 'react';
-import { CalculatorState, CalculationMode, PassengerType, FareCalculation, HistoryEntry } from '../lib/types';
+import { CalculatorState, CalculationMode, PassengerType, FareCalculation, HistoryEntry, DiscountedPassenger } from '../lib/types';
 import { findRoute, normalizeName, midsayapProper } from '../lib/routeData';
 import { getFareByGasPrice } from '../lib/fareCalculations';
 import toast from 'react-hot-toast';
@@ -106,10 +106,13 @@ export function useFareCalculator() {
     const isOriginProper = midsayapProper.includes(origin);
     const isDestProper = midsayapProper.includes(destination);
 
+    // Check if the passenger type is eligible for a discount.
+    const isDiscounted = ['student', 'senior', 'pwd'].includes(passengerType.type);
+
     if (!route && isOriginProper && isDestProper) {
       // Within town proper fare
-      const withinTownFare = getFareByGasPrice(gasPrice, 15.00, 12.00, passengerType);
-      const finalFare = hasBaggage ? withinTownFare + 10 : withinTownFare;
+      const baseFare = isDiscounted ? 12.00 : 15.00;
+      const finalFare = hasBaggage ? baseFare + 10 : baseFare;
 
       const result: FareCalculation = {
         fare: finalFare,
@@ -117,7 +120,9 @@ export function useFareCalculator() {
         distance: 'Within Town Proper',
         passengerType,
         gasPrice,
-        hasBaggage
+        hasBaggage,
+        regularFare: 15.00,
+        studentFare: 12.00,
       };
 
       setState(prev => ({ ...prev, result }));
@@ -132,8 +137,9 @@ export function useFareCalculator() {
     }
 
     // Calculate fare
-    let fare = getFareByGasPrice(gasPrice, route.baseRegular, route.baseStudent, passengerType);
-    
+    const baseFare = isDiscounted ? route.baseStudent : route.baseRegular;
+    let fare = getFareByGasPrice(gasPrice, baseFare, baseFare, passengerType); // Pass baseFare for both regular and student
+
     if (hasBaggage) {
       fare += 10;
     }
@@ -144,7 +150,9 @@ export function useFareCalculator() {
       distance: route.distance,
       passengerType,
       gasPrice,
-      hasBaggage
+      hasBaggage,
+      regularFare: route.baseRegular,
+      studentFare: route.baseStudent,
     };
 
     setState(prev => ({ ...prev, result }));

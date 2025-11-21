@@ -5,15 +5,13 @@ import dynamic from 'next/dynamic';
 import toast from 'react-hot-toast';
 import { useFareCalculator } from '../hooks/useFareCalculator';
 import ModeToggle from '../components/ModeToggle';
-import BottomNavbar from '../components/BottomNavbar';
-import SuggestionsPage from './Suggestions'; 
 
 import { getFares, Fare } from '../services/fares';
 import { logFareCalculation } from '../services/analytics';
 import { getAppConfig, AppConfig } from '../services/config';
 import { FaTimes } from 'react-icons/fa';
 
-import { FareCalculation } from '../lib/types';
+import { FareCalculation, DiscountedPassenger } from '../lib/types';
 
 // Dynamically import MapMode to prevent SSR issues with Leaflet
 const MapMode = dynamic(() => import('../components/calculator/MapMode'), {
@@ -25,7 +23,6 @@ import RouteMode from '../components/calculator/RouteMode';
 
 export default function Calculator() {
   const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
-  const [activeTab, setActiveTab] = useState<'calculator' | 'security' | 'suggestion'>('calculator');
 
   const {
     state,
@@ -76,14 +73,18 @@ export default function Calculator() {
 
       if (firestoreFares.length > 0) {
         const firestoreFare = firestoreFares[0];
+        const isDiscounted = ['student', 'senior', 'pwd'].includes(state.passengerType.type);
+        const finalFare = isDiscounted ? firestoreFare.price * 0.8 : firestoreFare.price;
+
         const calculatedFare: FareCalculation = {
-          fare: firestoreFare.price,
+          fare: finalFare,
           routeName: `${firestoreFare.origin} - ${firestoreFare.destination} (Special)`,
           distance: 0,
           passengerType: state.passengerType,
           gasPrice: state.gasPrice,
           hasBaggage: state.hasBaggage,
           regularFare: firestoreFare.price,
+          // The studentFare field can represent the general discounted fare
           studentFare: firestoreFare.price * 0.8,
           rateUsed: 0,
         };
@@ -98,49 +99,25 @@ export default function Calculator() {
   };
 
   return (
-    <div className="h-screen bg-white flex flex-col relative overflow-hidden">
+    <div className="bg-white flex flex-col relative overflow-hidden h-full">
       {/* App Update Notice Banner - Placed at the top level */}
       {appConfig && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 w-[90%] max-w-md bg-blue-100 text-blue-800 p-3 rounded-lg shadow-lg z-[9999] flex items-center justify-between">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[90%] max-w-md bg-blue-100 text-blue-800 p-3 rounded-lg shadow-lg z-30 flex items-center justify-between">
           <p className="text-sm font-medium">📢 {appConfig.notice}</p>
           <button onClick={() => setAppConfig(null)} className="p-1 rounded-full hover:bg-blue-200" aria-label="Dismiss notice">
             <FaTimes />
           </button>
         </div>
       )}
-
-      {/* Main Content Area */}
-      {activeTab === 'calculator' ? (
-        <>
-
-          <div className={`p-4 pt-8 relative z-20 ${state.mode === 'map' ? 'bg-transparent' : ''}`}>
-            <ModeToggle mode={state.mode} onModeChange={setMode} />
-          </div>
-
-          {state.mode === 'route' ? (
-            <RouteMode state={state} handlers={{ setOrigin, setDestination, setGasPrice, setPassengerType, setHasBaggage, handleCalculate, reset, clearHistory }} />
-          ) : (
-            <MapMode gasPrice={state.gasPrice} passengerType={state.passengerType} hasBaggage={state.hasBaggage} onGasPriceChange={setGasPrice} onPassengerTypeChange={setPassengerType} onBaggageChange={setHasBaggage} onCalculate={setMapResult} onError={setError} />
-          )}
-        </>
-      ) : activeTab === 'suggestion' ? (
-        <SuggestionsPage />
-      ) : null}
-
-
-      {/* Persistent Bottom Navigation */}
-      <div className="z-50"> {/* This div was missing its closing tag */}
-        <BottomNavbar
-          activeItem={activeTab}
-          onItemClick={(item) => {
-            if (item === 'security') {
-              toast('Coming soon!');
-            } else if (item === 'calculator' || item === 'suggestion') {
-              setActiveTab(item);
-            }
-          }}
-        />
+      
+      <div className={`pt-4 relative z-20 ${state.mode === 'map' ? 'bg-transparent' : ''}`}>
+        <ModeToggle mode={state.mode} onModeChange={setMode} />
       </div>
+      {state.mode === 'route' ? (
+        <RouteMode state={state} handlers={{ setOrigin, setDestination, setGasPrice, setPassengerType, setHasBaggage, handleCalculate, reset, clearHistory }} />
+      ) : (
+        <MapMode gasPrice={state.gasPrice} passengerType={state.passengerType} hasBaggage={state.hasBaggage} onGasPriceChange={setGasPrice} onPassengerTypeChange={setPassengerType} onBaggageChange={setHasBaggage} onCalculate={setMapResult} onError={setError} />
+      )}
     </div>
   );
 }
