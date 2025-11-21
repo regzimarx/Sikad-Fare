@@ -1,114 +1,60 @@
-<p align="center">
-  <a href="" rel="noopener">
- <img width=200px height=200px src="https://i.imgur.com/6wj0hh6.jpg" alt="Project logo"></a>
-</p>
+# Sikad Fare Calculator
 
-<h3 align="center">sikad-fare</h3>
+## Description
+This project is a web application designed to calculate fare prices based on various parameters. It aims to provide an easy-to-use interface for users to determine transportation costs, potentially for ride-sharing, public transport, or delivery services.
 
-<div align="center">
+## Features
+- Fare calculation based on origin, destination, and other factors.
+- User-friendly interface for inputting details.
+- (Add more specific features as they are implemented or discovered)
 
-[![Status](https://img.shields.io/badge/status-active-success.svg)]()
-[![GitHub Issues](https://img.shields.io/github/issues/kylelobo/The-Documentation-Compendium.svg)](https://github.com/kylelobo/The-Documentation-Compendium/issues)
-[![GitHub Pull Requests](https://img.shields.io/github/issues-pr/kylelobo/The-Documentation-Compendium.svg)](https://github.com/kylelobo/The-Documentation-Compendium/pulls)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](/LICENSE)
+## Technologies Used
+- Next.js (React Framework)
+- TypeScript
+- Tailwind CSS
+- (Potentially Firebase for backend/data, based on `firebase.ts` in `lib/`)
+- (Other libraries/frameworks as identified in `package.json`)
 
-</div>
+## Installation
+To set up the project locally, follow these steps:
 
----
+1.  **Clone the repository:**
+    ```bash
+    git clone <repository-url>
+    cd clean-sikad-fare
+    ```
 
-<p align="center"> Few lines describing your project.
-    <br> 
-</p>
+2.  **Install dependencies:**
+    ```bash
+    npm install
+    # or
+    yarn install
+    ```
 
-## 📝 Table of Contents
+3.  **Set up environment variables:**
+    Create a `.env.local` file in the root directory and add necessary environment variables (e.g., API keys, Firebase config).
+    ```
+    # Example:
+    # NEXT_PUBLIC_FIREBASE_API_KEY=your_firebase_api_key
+    # NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_firebase_auth_domain
+    # ...
+    ```
 
-- [About](#about)
-- [Getting Started](#getting_started)
-- [Deployment](#deployment)
-- [Usage](#usage)
-- [Built Using](#built_using)
-- [TODO](../TODO.md)
-- [Contributing](../CONTRIBUTING.md)
-- [Authors](#authors)
-- [Acknowledgments](#acknowledgement)
+## Usage
+To run the development server:
 
-## 🧐 About <a name = "about"></a>
-
-Write about 1-2 paragraphs describing the purpose of your project.
-
-## 🏁 Getting Started <a name = "getting_started"></a>
-
-These instructions will get you a copy of the project up and running on your local machine for development and testing purposes. See [deployment](#deployment) for notes on how to deploy the project on a live system.
-
-### Prerequisites
-
-What things you need to install the software and how to install them.
-
-```
-Give examples
-```
-
-### Installing
-
-A step by step series of examples that tell you how to get a development env running.
-
-Say what the step will be
-
-```
-Give the example
+```bash
+npm run dev
+# or
+yarn dev
 ```
 
-And repeat
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-```
-until finished
-```
+The application will automatically reload if you make changes to the source code.
 
-End with an example of getting some data out of the system or using it for a little demo.
+## Contributing
+(Instructions for contributing to the project, if applicable)
 
-## 🔧 Running the tests <a name = "tests"></a>
-
-Explain how to run the automated tests for this system.
-
-### Break down into end to end tests
-
-Explain what these tests test and why
-
-```
-Give an example
-```
-
-### And coding style tests
-
-Explain what these tests test and why
-
-```
-Give an example
-```
-
-## 🎈 Usage <a name="usage"></a>
-
-Add notes about how to use the system.
-
-## 🚀 Deployment <a name = "deployment"></a>
-
-Add additional notes about how to deploy this on a live system.
-
-## ⛏️ Built Using <a name = "built_using"></a>
-
-- [MongoDB](https://www.mongodb.com/) - Database
-- [Express](https://expressjs.com/) - Server Framework
-- [VueJs](https://vuejs.org/) - Web Framework
-- [NodeJs](https://nodejs.org/en/) - Server Environment
-
-## ✍️ Authors <a name = "authors"></a>
-
-- [@kylelobo](https://github.com/kylelobo) - Idea & Initial work
-
-See also the list of [contributors](https://github.com/kylelobo/The-Documentation-Compendium/contributors) who participated in this project.
-
-## 🎉 Acknowledgements <a name = "acknowledgement"></a>
-
-- Hat tip to anyone whose code was used
-- Inspiration
-- References
+## License
+(Information about the project's license)
