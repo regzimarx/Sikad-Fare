@@ -4,33 +4,34 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useDrag } from '@use-gesture/react';
 import { FaSpinner } from 'react-icons/fa';
 import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import toast from 'react-hot-toast';
-import { PassengerType, FareCalculation } from '../../lib/types';
+import { PassengerType, FareCalculation, HistoryEntry } from '../../lib/types';
+import { CalculationMode } from '../../lib/types'; // Import CalculationMode
 import { calculateMapFare, haversineDistance } from '../../lib/fareCalculations';
 import GasPriceSelector from '../form/GasPriceSelector';
 import PassengerSelector from '../form/PassengerSelector';
 import BaggageSelector from '../form/BaggageSelector';
+import ModeToggle from '../ModeToggle';
 import Modal from '../Modal';
 import FareResult from '../FareResult';
 
-// --- Firebase Service Imports ---
+// Firebase Service Imports
 import { logFareCalculation } from '../../services/analytics';
 
-// --- Configuration Constants ---
+// Configuration Constants
 const MAP_CONFIG = {
-  CENTER: [7.232, 124.365] as [number, number],
-  ZOOM: 12,
+  CENTER: [7.1915, 124.5385] as [number, number],
+  ZOOM: 14,
   MAX_ZOOM: 19,
 };
 
-// Calculate dynamic panel heights based on viewport for better UX
 const PANEL_HEIGHTS = {
   COLLAPSED: 240,
   EXPANDED: typeof window !== 'undefined' ? window.innerHeight * 0.55 : 400,
   FULL: typeof window !== 'undefined' ? window.innerHeight * 0.7 : 500,
 };
 
-// Custom icons for visual clarity on the map
 const MARKER_ICONS = {
   origin: L.icon({
     iconUrl:
@@ -50,6 +51,35 @@ const MARKER_ICONS = {
   }),
 };
 
+// Helper Functions
+const formatPassengerType = (type: PassengerType['type'], quantity: number) => {
+  const typeMap: Record<PassengerType['type'], string> = {
+    regular: 'Regular',
+    student: 'Student',
+    senior: 'Senior',
+    pwd: 'PWD',
+  };
+
+  const baseString = typeMap[type] || 'Unknown';
+
+  if (quantity > 1 && (type === 'student' || type === 'senior' || type === 'regular')) {
+    return `${baseString}s`;
+  }
+  return baseString;
+};
+
+const formatTimestamp = (timestamp: string) => {
+  const date = new Date(timestamp);
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+};
+
 interface MapModeProps {
   gasPrice: number;
   passengerType: PassengerType;
@@ -57,8 +87,14 @@ interface MapModeProps {
   onGasPriceChange: (price: number) => void;
   onPassengerTypeChange: (type: Partial<PassengerType>) => void;
   onBaggageChange: (value: boolean) => void;
+  history: HistoryEntry[];
+  clearHistory: () => void;
   onCalculate: (result: any) => void;
   onError: (error: string) => void;
+  onHistoryVisibilityChange: (isVisible: boolean) => void; // Callback to parent for history visibility
+  mode: CalculationMode; // Current calculation mode
+  onModeChange: (mode: CalculationMode) => void; // Handler to change mode
+  isHistoryOpen: boolean; // Prop from parent indicating if *any* history is open
 }
 
 export default function MapMode({
@@ -69,18 +105,24 @@ export default function MapMode({
   onPassengerTypeChange,
   onBaggageChange,
   onCalculate,
+  history,
+  clearHistory,
   onError,
+  onHistoryVisibilityChange, // Callback to parent for history visibility
+  mode, // Current calculation mode
+  onModeChange, // Handler to change mode
+  isHistoryOpen, // Prop from parent indicating if *any* history is open
 }: MapModeProps) {
-  // --- Refs for DOM/Map Instances ---
+  // Refs
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const routeLineRef = useRef<L.Polyline | null>(null);
   const destinationRef = useRef<L.Marker | null>(null);
 
-  // --- State Management ---
+  // State
   const [isMapLoading, setIsMapLoading] = useState(true);
-  const [isOriginMode, setIsOriginMode] = useState(false); // Controls floating button state
+  const [isOriginMode, setIsOriginMode] = useState(false);
   const [isPanelExpanded, setIsPanelExpanded] = useState(false);
   const [markers, setMarkers] = useState<{ origin: L.Marker | null; destination: L.Marker | null }>({
     origin: null,
@@ -91,13 +133,15 @@ export default function MapMode({
   const [isGeocodingOrigin, setIsGeocodingOrigin] = useState(false);
   const [isGeocodingDest, setIsGeocodingDest] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isHistoryVisible, setIsHistoryVisible] = useState(false);
   const [fareResult, setFareResult] = useState<FareCalculation | null>(null);
 
-  // -------------------------------------------------------------------
-  // Function: reverseGeocode
-  // Purpose: Converts latitude/longitude into a human-readable address using Nominatim API.
-  // Principle: Encapsulate external API calls for reusability and clarity.
-  // -------------------------------------------------------------------
+  // Effect to notify the parent component when history visibility changes
+  useEffect(() => {
+    onHistoryVisibilityChange(isHistoryVisible);
+  }, [isHistoryVisible, onHistoryVisibilityChange]);
+
+  // Reverse Geocoding
   const reverseGeocode = useCallback(async (latlng: L.LatLng, type: 'origin' | 'destination') => {
     const setLoading = type === 'origin' ? setIsGeocodingOrigin : setIsGeocodingDest;
     const setText = type === 'origin' ? setFromText : setToText;
@@ -107,14 +151,21 @@ export default function MapMode({
     setText('Fetching address...');
 
     try {
-      const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latlng.lat}&lon=${latlng.lng}`);
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latlng.lat}&lon=${latlng.lng}`
+      );
       const data = await response.json();
       if (data && data.display_name) {
         let displayName = data.display_name;
-        // If the display name is too long, construct a shorter, more reliable one.
         if (displayName.length > 50) {
           const addr = data.address;
-          const shortAddress = [addr.road || addr.suburb, addr.city || addr.town || addr.village, addr.country].filter(Boolean).join(', ');
+          const shortAddress = [
+            addr.road || addr.suburb,
+            addr.city || addr.town || addr.village,
+            addr.country,
+          ]
+            .filter(Boolean)
+            .join(', ');
           displayName = shortAddress || displayName.split(',').slice(0, 3).join(',');
         }
         setText(displayName);
@@ -122,19 +173,15 @@ export default function MapMode({
         setText(fallbackText);
       }
     } catch (error) {
-      console.error("Reverse geocoding failed:", error);
+      console.error('Reverse geocoding failed:', error);
       setText(fallbackText);
-      toast.error("Could not fetch address.");
+      toast.error('Could not fetch address.');
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // -------------------------------------------------------------------
-  // Function: createMarker
-  // Purpose: Creates a Leaflet marker and handles the CRITICAL 'dragend' event for the origin.
-  // Principle: Ensure user interactions (like dragging) update the source of truth (state/text).
-  // -------------------------------------------------------------------
+  // Create Marker
   const createMarker = useCallback(
     (latlng: L.LatLng, type: 'origin' | 'destination', draggable = false) => {
       const map = mapRef.current;
@@ -144,7 +191,6 @@ export default function MapMode({
 
       if (type === 'destination') marker.bindPopup('🎯 Destination');
 
-      // Add dragend listener ONLY for the draggable origin marker
       if (type === 'origin' && draggable) {
         marker.on('dragend', (e) => {
           const newLatLng = e.target.getLatLng();
@@ -152,13 +198,12 @@ export default function MapMode({
           toast.dismiss();
           toast.success('📍 Origin moved', { duration: 1500 });
 
-          // Update markers state and redraw route line
           setMarkers((prev) => {
-             const updated = { ...prev, origin: e.target };
-             if (updated.destination) {
-                drawRouteLine(updated.origin!.getLatLng(), updated.destination.getLatLng());
-             }
-             return updated;
+            const updated = { ...prev, origin: e.target };
+            if (updated.destination) {
+              drawRouteLine(updated.origin!.getLatLng(), updated.destination.getLatLng());
+            }
+            return updated;
           });
         });
       }
@@ -168,21 +213,15 @@ export default function MapMode({
     [reverseGeocode]
   );
 
-  // -------------------------------------------------------------------
-  // Function: drawRouteLine
-  // Purpose: Draws or redraws the polyline between origin and destination.
-  // Principle: Centralize side effects (map manipulation) into specific functions.
-  // -------------------------------------------------------------------
+  // Draw Route Line
   const drawRouteLine = useCallback((origin: L.LatLng, dest: L.LatLng) => {
     if (!mapRef.current) return;
 
-    // Remove previous line if it exists
     if (routeLineRef.current) {
       routeLineRef.current.remove();
       routeLineRef.current = null;
     }
 
-    // Create new line
     const newLine = L.polyline([origin, dest], {
       color: '#000',
       weight: 3,
@@ -192,11 +231,7 @@ export default function MapMode({
     routeLineRef.current = newLine;
   }, []);
 
-  // -------------------------------------------------------------------
-  // Function: getUserLocation
-  // Purpose: Finds and sets the user's current location as the default origin.
-  // Principle: Abstract complex browser APIs (Geolocation) into a reusable hook.
-  // -------------------------------------------------------------------
+  // Get User Location
   const getUserLocation = useCallback(() => {
     if (!navigator.geolocation) {
       toast.error('Geolocation not supported');
@@ -214,7 +249,6 @@ export default function MapMode({
         toast.success('📍 Location found', { duration: 2000 });
 
         setMarkers((prev) => {
-          // If an origin marker already exists, move it. Otherwise, create a new one.
           if (prev.origin) {
             prev.origin.setLatLng(latlng);
           } else {
@@ -231,13 +265,9 @@ export default function MapMode({
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
-  }, [createMarker, reverseGeocode]); // Dependencies are correct
+  }, [createMarker, reverseGeocode]);
 
-  // -------------------------------------------------------------------
-  // Effect: Initialize Map
-  // Purpose: Sets up the Leaflet map instance and tile layer.
-  // Principle: Use useEffect for mounting and cleanup of external libraries (Leaflet).
-  // -------------------------------------------------------------------
+  // Initialize Map
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
@@ -258,7 +288,6 @@ export default function MapMode({
 
     mapRef.current = map;
 
-    // Cleanup function
     return () => {
       if (routeLineRef.current) routeLineRef.current.remove();
       if (destinationRef.current) destinationRef.current.remove();
@@ -267,27 +296,21 @@ export default function MapMode({
     };
   }, [getUserLocation]);
 
-  // -------------------------------------------------------------------
-  // Effect: Handle Map Click (Origin and Destination Setting)
-  // Purpose: Listens for map clicks and updates the correct marker based on isOriginMode.
-  // Principle: Ensure state updates are atomic and side effects (map drawing) follow.
-  // -------------------------------------------------------------------
+  // Handle Map Click
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
     const onClick = (e: L.LeafletMouseEvent) => {
       if (isOriginMode) {
-        // --- ORIGIN MODE LOGIC ---
         setMarkers((prev) => {
           const updated = { ...prev };
           if (updated.origin) {
-            map.removeLayer(updated.origin); // Remove the old marker from the map
-            updated.origin = createMarker(e.latlng, 'origin', true); // Create a new one
+            map.removeLayer(updated.origin);
+            updated.origin = createMarker(e.latlng, 'origin', true);
           } else {
             updated.origin = createMarker(e.latlng, 'origin', true);
           }
-          // Redraw route line if destination is set
           if (updated.origin && updated.destination) {
             drawRouteLine(updated.origin.getLatLng(), updated.destination.getLatLng());
           }
@@ -297,16 +320,13 @@ export default function MapMode({
         reverseGeocode(e.latlng, 'origin');
         toast.dismiss();
         toast.success('📍 Origin updated');
-        setIsOriginMode(false); // Exit origin mode after setting
+        setIsOriginMode(false);
       } else {
-        // --- DESTINATION MODE LOGIC (Default) ---
         setMarkers((prev) => {
           const updated = { ...prev };
-          // Remove old destination marker
           if (destinationRef.current) {
             map.removeLayer(destinationRef.current);
           }
-          // Create new destination marker
           const newDest = createMarker(e.latlng, 'destination');
           destinationRef.current = newDest;
           updated.destination = newDest;
@@ -328,11 +348,7 @@ export default function MapMode({
     };
   }, [isOriginMode, createMarker, drawRouteLine, reverseGeocode]);
 
-  // -------------------------------------------------------------------
-  // Function: handleCalculate
-  // Purpose: Calculates the final fare and passes the result to the parent component.
-  // Principle: Decouple business logic (fare calculation) from presentation (UI).
-  // -------------------------------------------------------------------
+  // Calculate Fare
   const handleCalculate = useCallback(() => {
     if (!markers.origin || !markers.destination) {
       toast.error('Please set both origin and destination');
@@ -361,12 +377,12 @@ export default function MapMode({
     setIsModalOpen(true);
     toast.dismiss();
 
-    // --- Log Event to Firebase Analytics ---
-    // We use the geocoded text for more readable analytics data.
     const originText = fromText.includes('Lat:') ? 'GPS Coordinates' : fromText;
     const destText = toText.includes('Lat:') ? 'GPS Coordinates' : toText;
     logFareCalculation(originText, destText, 'map');
-  }, [markers, gasPrice, passengerType, hasBaggage, onCalculate]);
+  }, [markers, gasPrice, passengerType, hasBaggage, onCalculate, fromText, toText]);
+
+  // Panel Drag Gesture
   const bind = useDrag(
     ({ down, movement: [, my], velocity: [, vy], direction: [, dy], memo }) => {
       const panel = panelRef.current;
@@ -395,10 +411,15 @@ export default function MapMode({
     { axis: 'y' }
   );
 
-  // --- Render ---
   return (
     <div className="fixed inset-0 bg-gray-200">
+      {/* Map Container */}
       <div ref={mapContainerRef} className="absolute inset-0 z-0" />
+
+      {/* Mode Toggle - positioned within MapMode */}
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20"> {/* z-20 to be above map, below history backdrop */}
+        <ModeToggle mode={mode} onModeChange={onModeChange} isHistoryOpen={isHistoryOpen || isHistoryVisible} />
+      </div>
 
       {/* Map Loading State */}
       {isMapLoading && (
@@ -408,7 +429,7 @@ export default function MapMode({
         </div>
       )}
 
-      {/* Floating Action Button */}
+      {/* Floating Action Buttons */}
       <div className="absolute bottom-[250px] right-4 z-20 flex flex-col gap-2">
         <button
           type="button"
@@ -426,12 +447,35 @@ export default function MapMode({
         >
           📍
         </button>
+        
+        {/* History Button */}
+        <button
+          type="button"
+          onClick={() => setIsHistoryVisible(true)}
+          className="w-12 h-12 rounded-full shadow-lg bg-white hover:bg-gray-100 flex items-center justify-center"
+          title="View History"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-6 w-6"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
+        </button>
       </div>
 
       {/* Bottom Panel */}
       <div
         ref={panelRef}
-        className="fixed bottom-[5px] left-0 right-0 bg-white rounded-t-3xl shadow-2xl z-40 transition-all"
+        className="fixed bottom-[5px] left-0 right-0 bg-white rounded-t-3xl shadow-2xl z-30 transition-all"
         style={{ height: `${PANEL_HEIGHTS.COLLAPSED}px` }}
       >
         <div className="p-6 flex flex-col h-full relative">
@@ -457,7 +501,6 @@ export default function MapMode({
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-6 pt-6 overflow-y-auto">
-              {/* Expanded Panel Details */}
               <div className="space-y-4">
                 <div>
                   <label className="text-xs font-bold text-gray-600 flex items-center gap-1 mb-1">
@@ -500,9 +543,78 @@ export default function MapMode({
         </div>
       </div>
 
+      {/* Fare Result Modal */}
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
         {fareResult && <FareResult result={fareResult} />}
       </Modal>
+
+      {/* History Backdrop */}
+      {isHistoryVisible && (
+        <div
+          onClick={() => setIsHistoryVisible(false)}
+          className="fixed inset-0 bg-black/30 z-40"
+        />
+      )}
+
+      {/* History Sheet */}
+      <div
+        className={`fixed bottom-[70px] left-0 right-0 bg-gray-50 rounded-t-3xl p-6 shadow-[0_-10px_30px_-15px_rgba(0,0,0,0.1)] border-t border-gray-200 z-50 transition-transform duration-300 ease-in-out ${
+          isHistoryVisible ? 'translate-y-0' : 'translate-y-full'
+        } ${history.length === 0 ? 'h-auto' : ''}`}
+        style={{ height: history.length > 0 ? 'calc(100vh - 140px)' : undefined }}
+      >
+        <div className="flex justify-between items-center pb-4 border-b border-gray-200">
+          <h2 className="text-xl font-bold">Map Calculation History</h2>
+          {history.length > 0 && (
+            <button
+              onClick={() => {
+                clearHistory();
+                setIsHistoryVisible(false);
+              }}
+              className="py-1 px-3 text-xs font-semibold text-red-600 hover:bg-red-50 rounded-md transition-colors"
+            >
+              Clear All
+            </button>
+          )}
+        </div>
+        <div className="max-h-[calc(100vh_-_200px)] overflow-y-auto pt-4">
+          {history.length === 0 ? (
+            <p className="text-gray-500 text-center py-8">No map history yet.</p>
+          ) : (
+            <div className="space-y-4">
+              {history.map((item: HistoryEntry) => (
+                <div key={item.id} className="pb-4 border-b border-gray-200 last:border-b-0">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-semibold text-gray-800 text-base">{item.routeName}</p>
+                      <p className="text-xs text-gray-400 mt-1">{formatTimestamp(item.timestamp)}</p>
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold text-gray-900 text-right">
+                        ₱{item.fare.toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-1.5 flex items-center text-xs text-gray-500">
+                    <span title="Passenger Type & Quantity" className="flex items-center">
+                      👤 {item.passengerType.quantity}{' '}
+                      {formatPassengerType(item.passengerType.type, item.passengerType.quantity)}
+                    </span>
+                    <span className="mx-2">&middot;</span>
+                    <span title="Gas Price" className="flex items-center">
+                      ⛽ ₱{item.gasPrice.toFixed(2)}/L
+                    </span>
+                    <span className="mx-2">&middot;</span>
+                    <span title="Baggage Included" className="flex items-center">
+                      🧳 {item.hasBaggage ? 'Yes' : 'No'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

@@ -23,6 +23,7 @@ import RouteMode from '../components/calculator/RouteMode';
 
 export default function Calculator() {
   const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   const {
     state,
@@ -110,13 +111,32 @@ export default function Calculator() {
         </div>
       )}
       
-      <div className={`pt-4 relative z-20 ${state.mode === 'map' ? 'bg-transparent' : ''}`}>
-        <ModeToggle mode={state.mode} onModeChange={setMode} />
-      </div>
       {state.mode === 'route' ? (
-        <RouteMode state={state} handlers={{ setOrigin, setDestination, setGasPrice, setPassengerType, setHasBaggage, handleCalculate, reset, clearHistory }} />
+        <RouteMode 
+          state={state} 
+          handlers={{ setOrigin, setDestination, setGasPrice, setPassengerType, setHasBaggage, handleCalculate, reset, clearHistory }} 
+          onHistoryVisibilityChange={setIsHistoryOpen}
+          mode={state.mode}
+          onModeChange={setMode}
+          isHistoryOpen={isHistoryOpen}
+        />
       ) : (
-        <MapMode gasPrice={state.gasPrice} passengerType={state.passengerType} hasBaggage={state.hasBaggage} onGasPriceChange={setGasPrice} onPassengerTypeChange={setPassengerType} onBaggageChange={setHasBaggage} onCalculate={setMapResult} onError={setError} />
+        <MapMode 
+          gasPrice={state.gasPrice} 
+          passengerType={state.passengerType} 
+          hasBaggage={state.hasBaggage} 
+          onGasPriceChange={setGasPrice} 
+          onPassengerTypeChange={setPassengerType} 
+          onBaggageChange={setHasBaggage} 
+          onCalculate={setMapResult} 
+          onError={setError} 
+          history={state.history} 
+          clearHistory={clearHistory} 
+          onHistoryVisibilityChange={setIsHistoryOpen}
+          mode={state.mode}
+          onModeChange={setMode}
+          isHistoryOpen={isHistoryOpen}
+        />
       )}
     </div>
   );

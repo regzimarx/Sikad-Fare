@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import LocationSelector from '../form/LocationSelector';
 import GasPriceSelector from '../form/GasPriceSelector';
 import PassengerSelector from '../form/PassengerSelector';
 import BaggageSelector from '../form/BaggageSelector';
+import ModeToggle from '../ModeToggle'; // Import ModeToggle
+import { CalculationMode } from '../../lib/types'; // Import CalculationMode
 import { midsayapProper, outsideMidsayap } from '../../lib/routeData';
 import { HistoryEntry, CalculatorState, PassengerType } from '../../lib/types';
 
@@ -20,7 +22,11 @@ interface RouteModeProps {
     handleCalculate: () => void;
     reset: () => void;
     clearHistory: () => void;
-  };
+  }, // Handlers from useFareCalculator
+  onHistoryVisibilityChange: (isVisible: boolean) => void; // Callback to parent for history visibility
+  mode: CalculationMode; // Current calculation mode
+  onModeChange: (mode: CalculationMode) => void; // Handler to change mode
+  isHistoryOpen: boolean; // Prop from parent indicating if *any* history is open
 }
 
 // Helper to format passenger type for display
@@ -54,8 +60,12 @@ const formatTimestamp = (timestamp: string) => {
   });
 };
 
-export default function RouteMode({ state, handlers }: RouteModeProps) {
+export default function RouteMode({ state, handlers, onHistoryVisibilityChange, mode, onModeChange, isHistoryOpen }: RouteModeProps) {
   const [isHistoryVisible, setIsHistoryVisible] = useState(false);
+
+  useEffect(() => {
+    onHistoryVisibilityChange(isHistoryVisible);
+  }, [isHistoryVisible, onHistoryVisibilityChange]);
 
   const getAvailableDestinations = () => {
     if (!state || !state.origin) return [];
@@ -78,6 +88,10 @@ export default function RouteMode({ state, handlers }: RouteModeProps) {
   // Main container for the app's views
   return (
     <>
+      {/* Mode Toggle - positioned within RouteMode */}
+      <div className="pt-4 relative z-20"> {/* z-20 to be above map, below history backdrop */}
+        <ModeToggle mode={mode} onModeChange={onModeChange} isHistoryOpen={isHistoryOpen || isHistoryVisible} />
+      </div>
       <div className="flex-grow flex flex-col overflow-y-auto pb-[260px]">
         <div className="flex flex-col h-full">
           {/* Fare Display Area */}
