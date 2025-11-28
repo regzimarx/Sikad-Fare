@@ -1,39 +1,57 @@
-import type { Metadata, Viewport } from "next";
-import "./globals.css";
-import { Toaster } from 'react-hot-toast';
-import 'flowbite';
+'use client';
 
-export const metadata: Metadata = {
-  title: "Sikad Fare Calculator - Midsayap",
-  description: "Tricycle fare calculator for Midsayap, Cotabato based on LGU Ordinance No. 536",
-  icons: {
-    icon: [
-      { url: '/favicon.ico', rel: 'icon', type: 'image/x-icon', sizes: 'any' },
-      { url: '/favicon-16x16.png', type: 'image/png', sizes: '16x16' },
-      { url: '/favicon-32x32.png', type: 'image/png', sizes: '32x32' },
-    ],
-    apple: '/apple-touch-icon.png',
-    other: [
-      { rel: 'icon', url: '/android-chrome-192x192.png', sizes: '192x192', type: 'image/png' },
-      { rel: 'icon', url: '/android-chrome-512x512.png', sizes: '512x512', type: 'image/png' },
-    ],
-  },
-};
-
-export const viewport: Viewport = {
-  themeColor: "#000000",
-};
+import React from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import BottomNavbar, { NavItem } from '../components/BottomNavbar';
+import './globals.css'; // Assuming you have a global CSS file
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
+  const pathname = usePathname();
+
+  // Handle the case where pathname is null during initial render or hydration
+  if (pathname === null) {
+    return (
+      <html lang="en">
+        <body>{children}</body> {/* Or a loading spinner */}
+      </html>
+    );
+  }
+
+  const router = useRouter();
+
+  // Don't render the layout for the root page, as it just redirects.
+  if (pathname === '/') {
+    return (
+      <html lang="en">
+        <body>{children}</body>
+      </html>
+    );
+  }
+
+  // Safely determine the active nav item by checking the start of the path.
+  // This handles nested routes (e.g., /suggest/new) correctly.
+  const getActiveItem = (currentPath: string): NavItem => {
+    if (currentPath.startsWith('/suggestion')) return 'suggestion';
+    if (currentPath.startsWith('/report')) return 'report';
+    // Default to calculator for any other path, including '/calculator'
+    return 'calculator';
+  };
+
+  const handleNavItemClick = (item: NavItem) => {
+    router.push(`/${item}`);
+  };
+
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className="font-sans">
-        {children}
-        <Toaster position="top-center" />
+    <html lang="en">
+      <body>
+        <div className="flex flex-col min-h-screen">
+          <main className="flex-grow pb-20 h-screen">{children}</main>
+          <BottomNavbar activeItem={getActiveItem(pathname)} onItemClick={handleNavItemClick} />
+        </div>
       </body>
     </html>
   );

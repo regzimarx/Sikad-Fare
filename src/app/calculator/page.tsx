@@ -6,7 +6,6 @@ import dynamic from 'next/dynamic';
 import toast from 'react-hot-toast';
 import { useFareCalculator } from '../../hooks/useFareCalculator';
 import ModeToggle from '../../components/ModeToggle';
-import BottomNavbar, { NavItem } from '../../components/BottomNavbar'; // Import NavItem from its source
 
 import { getFares, Fare } from '../../services/fares';
 import { logFareCalculation } from '../../services/analytics';
@@ -26,7 +25,6 @@ import RouteMode from '../../components/calculator/RouteMode';
 export default function Calculator() {
   const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [activeItem, setActiveItem] = useState<NavItem>('calculator');
 
   const {
     state,
@@ -47,11 +45,6 @@ export default function Calculator() {
 
   const handleHistoryVisibilityChange = () => {
     setIsHistoryOpen(!isHistoryOpen);
-  };
-
-  const handleNavItemClick = (item: NavItem) => {
-    setActiveItem(item);
-    router.push(item === 'calculator' ? '/calculator' : `/${item}`);
   };
 
   // --- Effect to Fetch App Configuration ---
@@ -165,10 +158,6 @@ export default function Calculator() {
         )}
       </>
 
-      {/* Persistent Bottom Navigation */}
-      <div className="z-50">
-        <BottomNavbar activeItem={activeItem} onItemClick={handleNavItemClick} />
-      </div>
     </div>
   );
 }
