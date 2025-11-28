@@ -416,11 +416,6 @@ export default function MapMode({
       {/* Map Container */}
       <div ref={mapContainerRef} className="absolute inset-0 z-0" />
 
-      {/* Mode Toggle - positioned within MapMode */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20"> {/* z-20 to be above map, below history backdrop */}
-        <ModeToggle mode={mode} onModeChange={onModeChange} isHistoryOpen={isHistoryOpen || isHistoryVisible} />
-      </div>
-
       {/* Map Loading State */}
       {isMapLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-200/80 z-10">

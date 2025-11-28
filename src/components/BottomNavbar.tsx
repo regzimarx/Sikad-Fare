@@ -1,10 +1,10 @@
 'use client';
 
 import React from 'react';
-import { FaCalculator, FaLightbulb, FaShieldAlt } from 'react-icons/fa';
+import { FaCalculator, FaLightbulb, FaFlag } from 'react-icons/fa';
 
 // Define the possible navigation items. This makes it easy to add/remove tabs in the future.
-export type NavItem = 'calculator' | 'suggestion' | 'security';
+export type NavItem = 'calculator' | 'suggestion' | 'report';
 
 interface BottomNavbarProps {
   activeItem: NavItem;
@@ -19,9 +19,9 @@ const navItems: { id: NavItem; icon: React.ElementType; label: string }[] = [
     label: 'Suggest',
   },
   {
-    id: 'security',
-    icon: FaShieldAlt,
-    label: 'Security',
+    id: 'report',
+    icon: FaFlag, // Using a flag icon for reporting
+    label: 'Report',
   },
 ];
 

@@ -88,10 +88,6 @@ export default function RouteMode({ state, handlers, onHistoryVisibilityChange, 
   // Main container for the app's views
   return (
     <>
-      {/* Mode Toggle - positioned within RouteMode */}
-      <div className="pt-4 relative z-20"> {/* z-20 to be above map, below history backdrop */}
-        <ModeToggle mode={mode} onModeChange={onModeChange} isHistoryOpen={isHistoryOpen || isHistoryVisible} />
-      </div>
       <div className="flex-grow flex flex-col overflow-y-auto pb-[260px]">
         <div className="flex flex-col h-full">
           {/* Fare Display Area */}
