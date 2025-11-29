@@ -33,6 +33,12 @@ const withPWA = require("@ducanh2912/next-pwa").default({
 
 const nextConfig = {
   reactStrictMode: true,
+
+  // FIX ADDED HERE ✔️
+  experimental: {
+    appDir: true,
+  },
+
   turbopack: {},
 };
 

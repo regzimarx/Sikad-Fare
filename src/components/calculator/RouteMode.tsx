@@ -88,21 +88,21 @@ export default function RouteMode({ state, handlers, onHistoryVisibilityChange, 
   // Main container for the app's views
   return (
     <>
-      <div className="flex-grow flex flex-col overflow-y-auto pb-[260px]">
+<div className="flex-grow flex flex-col">
         <div className="flex flex-col h-full">
           {/* Fare Display Area */}
-          <div className="px-6 pb-3">
-            <div className="text-right text-sm font-bold text-gray-500 uppercase tracking-wider">
+          <div className="px-6">
+            <div className="text-right text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
               Sikad Fare
             </div>
 
-            <div className="flex flex-col items-end justify-end mt-1">
+            <div className="flex flex-col items-end justify-end">
               <div className="animate-fade-in">
                 <div className="flex flex-col items-end justify-end leading-none">
-                  <div className="text-7xl font-bold text-gray-800 tracking-tight h-[80px] flex items-end">
+                  <div className="text-7xl font-bold text-gray-800 tracking-tight flex items-end">
                     {state.result ? `₱${state.result.fare.toFixed(2)}` : '₱0.00'}
                   </div>
-                  <div className="text-sm text-gray-500 mt-1 h-[22px] flex items-center justify-end whitespace-nowrap">
+                  <div className="text-sm text-gray-500 flex items-center justify-end whitespace-nowrap">
                     {state.result ? (
                       typeof state.result.distance === 'number' ? (
                         `Distance: ${state.result.distance.toFixed(2)}km`
@@ -117,11 +117,8 @@ export default function RouteMode({ state, handlers, onHistoryVisibilityChange, 
               </div>
             </div>
           </div>
-          {/* Spacer so content doesn't overlap fixed form */}
-          <div className="flex-grow" />
         </div>
       </div>
-
       {/* Fixed Form Area Above Navbar */}
       <div className="fixed bottom-[70px] left-0 right-0 bg-gray-50 rounded-t-3xl p-6 shadow-[0_-10px_30px_-15px_rgba(0,0,0,0.1)] border-t border-gray-200 z-30">
         {/* History Button - Top Right of Form */}

@@ -7,24 +7,24 @@
   --foreground: #000000;
 }
 
+html, body {
+  /* This will prevent the page from being scrollable */
+  overflow: hidden;
+}
+
 body {
   color: var(--foreground);
   background: var(--background);
-}
-
-/* Hide scrollbar but keep functionality */
-::-webkit-scrollbar {
-  display: none;
-}
-
-body {
+  /* Prevent pull-to-refresh on mobile */
+  overscroll-behavior-y: contain;
+  /* Hide scrollbar for IE, Edge, and Firefox */
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
 
-/* Prevent pull-to-refresh on mobile */
-body {
-  overscroll-behavior-y: contain;
+/* Hide scrollbar for Webkit browsers (Chrome, Safari) */
+::-webkit-scrollbar {
+  display: none;
 }
 
 /* Smooth transitions */

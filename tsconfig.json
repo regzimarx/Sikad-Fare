@@ -1,11 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2017",
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "esnext"
-    ],
+    "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -17,26 +13,34 @@
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
+
+    // REQUIRED
+    "baseUrl": ".",
+
+    // FIXED: map @/* to your `src` folder
     "paths": {
-      "@/*": [
-        "./*"
-      ]
-    }
+      "@/*": ["src/*"]
+    },
+
+    "plugins": [
+      { "name": "next" }
+    ]
   },
+
+  // REQUIRED FOR src/app
+  "experimental": {
+    "appDir": "src/app"
+  },
+
   "include": [
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
-    "**/*.mts"
-, "next.config.js"  ],
-  "exclude": [
-    "node_modules"
-  ]
+    "**/*.mts",
+    "next.config.js"
+  ],
+
+  "exclude": ["node_modules"]
 }
