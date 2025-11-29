@@ -206,8 +206,8 @@ export default function ReportPage() {
               id="sikadNumber"
               value={formData.sikadNumber}
               onChange={(e) => setFormData({ ...formData, sikadNumber: e.target.value })}
-              placeholder='Enter number or "Not sure"'
-              className="w-full p-4 text-xl mt-1 border-2 border-gray-300 rounded-lg focus:border-blue-500"
+              placeholder='Enter number or "I don&apos;t know"'
+              className="w-full p-4 text-xl mt-1 border-2 border-gray-300 rounded-lg focus:border-blue-500 placeholder:text-gray-400"
             />
             <p className="mt-2 text-sm text-gray-500">
                 It's okay if you don't know the exact number!
@@ -259,7 +259,7 @@ export default function ReportPage() {
               value={formData.locationLandmark} 
               onChange={(e) => setFormData({ ...formData, locationLandmark: e.target.value })} 
               placeholder="e.g., Near the public market corner" 
-              className="w-full p-3 mt-1 border-2 border-gray-300 rounded-lg focus:border-blue-500" 
+              className="w-full p-3 mt-1 border-2 border-gray-300 rounded-lg focus:border-blue-500 placeholder:text-gray-400" 
             />
           </div>
         );
@@ -272,8 +272,8 @@ export default function ReportPage() {
               value={formData.description} 
               onChange={(e) => setFormData({ ...formData, description: e.target.value })} 
               rows={5} 
-              className="w-full p-3 mt-1 border-2 border-gray-300 rounded-lg focus:border-blue-500" 
-              placeholder="Please provide details (e.g., time, color of sikad, what was said/done). This is important."
+              className="w-full p-3 mt-1 border-2 border-gray-300 rounded-lg focus:border-blue-500 placeholder:text-gray-400" 
+              placeholder="Please provide details (e.g., time, color of sikad, what was said/done)."
             ></textarea>
             
             <p className="mt-4 text-sm text-gray-600">
@@ -394,50 +394,35 @@ export default function ReportPage() {
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           placeholder="Search for a location..."
-          className="w-full p-3 mb-3 border-2 border-gray-300 rounded-lg focus:border-blue-500"
+          className="w-full p-3 mb-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 placeholder:text-gray-400"
         />
         <div className="max-h-[45vh] overflow-y-auto">
-            <div className="grid grid-cols-2 gap-x-4">
-              {/* Inside Town Column */}
-              <div>
-                <h4 className="font-bold text-gray-600 mb-2 sticky top-0 bg-gray-50 py-1">Inside Town</h4>
-                {(pickerTarget === 'locationFrom' ? midsayapProper : availableDestinations.filter(loc => midsayapProper.includes(loc)))
-                  .filter(loc => loc.toLowerCase().includes(searchTerm.toLowerCase()))
-                  .map(location => (
-                    <button
-                      key={location}
-                      onClick={() => {
-                        if (pickerTarget) { setFormData({ ...formData, [pickerTarget]: location }); }
-                        setIsPickerOpen(false);
-                        setSearchTerm('');
-                      }}
-                      className="w-full text-left p-2 text-base rounded-lg hover:bg-gray-200"
-                    >
-                      {location}
-                    </button>
-                  ))}
-              </div>
-              {/* Outside Town Column */}
-              <div>
-                <h4 className="font-bold text-gray-600 mb-2 sticky top-0 bg-gray-50 py-1">Outside Town</h4>
-                {(pickerTarget === 'locationFrom' ? outsideMidsayap : availableDestinations.filter(loc => outsideMidsayap.includes(loc)))
-                  .filter(loc => loc.toLowerCase().includes(searchTerm.toLowerCase()))
-                  .map(location => (
-                    <button
-                      key={location}
-                      onClick={() => {
-                        if (pickerTarget) { setFormData({ ...formData, [pickerTarget]: location }); }
-                        setIsPickerOpen(false);
-                        setSearchTerm('');
-                      }}
-                      className="w-full text-left p-2 text-base rounded-lg hover:bg-gray-200"
-                    >
-                      {location}
-                    </button>
-                  ))}
-              </div>
+          <div>
+            {/* --- Outside Town Section --- */}
+            <h4 className="font-bold text-gray-600 mb-2 bg-gray-50 py-1 px-2">🌄 Outside Town</h4>
+            <div className="grid grid-cols-2 gap-x-4 px-2">
+              {(pickerTarget === 'locationFrom' ? outsideMidsayap : availableDestinations.filter(loc => outsideMidsayap.includes(loc)))
+                .filter(loc => loc.toLowerCase().includes(searchTerm.toLowerCase()))
+                .map(location => (
+                  <button key={location} onClick={() => { if (pickerTarget) { setFormData({ ...formData, [pickerTarget]: location }); } setIsPickerOpen(false); setSearchTerm(''); }} className="w-full text-left p-2 text-base rounded-lg bg-gray-100 hover:bg-gray-200 mb-2">
+                    {location}
+                  </button>
+                ))}
+            </div>
+
+            {/* --- Inside Town Section --- */}
+            <h4 className="font-bold text-gray-600 mt-4 mb-2 bg-gray-50 py-1 px-2">🏘️ Inside Town</h4>
+            <div className="grid grid-cols-2 gap-x-4 px-2">
+              {(pickerTarget === 'locationFrom' ? midsayapProper : availableDestinations.filter(loc => midsayapProper.includes(loc)))
+                .filter(loc => loc.toLowerCase().includes(searchTerm.toLowerCase()))
+                .map(location => (
+                  <button key={location} onClick={() => { if (pickerTarget) { setFormData({ ...formData, [pickerTarget]: location }); } setIsPickerOpen(false); setSearchTerm(''); }} className="w-full text-left p-2 text-base rounded-lg bg-gray-100 hover:bg-gray-200 mb-2">
+                    {location}
+                  </button>
+                ))}
             </div>
           </div>
+        </div>
         <button
           onClick={() => {
             setIsPickerOpen(false);
