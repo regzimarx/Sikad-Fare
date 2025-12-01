@@ -40,8 +40,6 @@ export const gasPriceOptions: GasPriceOption[] = [
 
 // Midsayap town proper locations
 export const midsayapProper = [
-  "Town Hall",
-  "Public Market",
   "Pob 1",
   "Pob 2",
   "Pob 3",
@@ -49,29 +47,31 @@ export const midsayapProper = [
   "Pob 5",
   "Pob 6",
   "Pob 7",
-  "Pob 8"
-];
+  "Pob 8",
+  "Public Market",
+  "Town Hall",
+].sort();
 
 // Outside Midsayap locations
 export const outsideMidsayap = [
-  "Villarica",
-  "Sadaan",
-  "Arizona",
-  "Kimagango",
-  "Rangaban",
-  "Kiwanan",
-  "Aleosan",
   "Agriculture",
-  "San Isidro",
-  "Damatug",
+  "Aleosan",
   "Anonang",
+  "Arizona",
+  "Bagumba",
+  "Baliki",
   "Barongis",
+  "Damatug",
+  "Kimagango",
+  "Kiwanan",
   "Libungan Proper",
   "Palongoguen",
+  "Rangaban",
+  "Sadaan",
   "Salunayan",
-  "Bagumba",
-  "Baliki"
-];
+  "San Isidro",
+  "Villarica",
+].sort();
 
 // Normalize location names
 export function normalizeName(name: string): string {
