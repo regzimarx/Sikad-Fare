@@ -150,7 +150,9 @@ export function StepRenderer({ step, formData, setFormData, midsayapProper, outs
       return (
         <div>
           <h2 className="text-2xl font-bold mb-6 text-center">Step 3: Sikad Number?</h2>
-          <p className="text-sm text-gray-600 mb-2">If you know the **Sikad/Tricycle Plate Number**, please enter it.</p>
+          <p className="text-sm text-gray-600 mb-2">
+            If you know the <span className="font-semibold">Sikad Tracking Number</span> or the <span className="font-semibold">Plate Number</span>, please enter it.
+          </p>
           <label htmlFor="sikadNumber" className="block text-lg font-medium text-gray-700 sr-only">
             Sikad Number or Description
           </label>
