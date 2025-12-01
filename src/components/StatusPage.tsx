@@ -42,7 +42,7 @@ const StatusPage: React.FC<StatusPageProps> = ({ featureName, onNavigate }) => {
               Want to help us improve? We'd love to hear your ideas!
             </p>
             <button
-              onClick={() => onNavigate('suggestion')}
+              onClick={() => onNavigate('suggest')}
               className="w-full bg-yellow-400 text-yellow-900 font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 hover:bg-yellow-500 transition-all duration-200 active:scale-95"
             >
               <FaLightbulb /> Go to Suggestion Page

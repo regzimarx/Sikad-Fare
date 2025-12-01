@@ -42,7 +42,7 @@ const ComingSoon: React.FC<ComingSoonProps> = ({ featureName, onNavigate }) => {
               Have ideas for this feature or others? Let us know!
             </p>
             <button
-              onClick={() => onNavigate('suggestion')}
+              onClick={() => onNavigate('suggest')}
               className="w-full bg-yellow-400 text-yellow-900 font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 hover:bg-yellow-500 transition-all duration-200 active:scale-95"
             >
               <FaLightbulb /> Go to Suggestion Page

@@ -8,14 +8,12 @@ import 'leaflet/dist/leaflet.css';
 import toast from 'react-hot-toast';
 import { PassengerType, FareCalculation, HistoryEntry } from '../../lib/types';
 import { CalculationMode } from '../../lib/types'; // Import CalculationMode
-import { calculateMapFare, haversineDistance } from '../../lib/fareCalculations';
 import GasPriceSelector from '../form/GasPriceSelector';
 import PassengerSelector from '../form/PassengerSelector';
 import BaggageSelector from '../form/BaggageSelector';
 import ModeToggle from '../ModeToggle';
 import Modal from '../Modal';
 import FareResult from '../FareResult';
-
 // Firebase Service Imports
 import { logFareCalculation } from '../../services/analytics';
 
@@ -118,6 +116,7 @@ export default function MapMode({
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const routeLineRef = useRef<L.Polyline | null>(null);
+  const originRef = useRef<L.Marker | null>(null);
   const destinationRef = useRef<L.Marker | null>(null);
 
   // State
@@ -128,6 +127,9 @@ export default function MapMode({
     origin: null,
     destination: null,
   });
+  const [routeCache, setRouteCache] = useState<{ distanceMeters: number; coords: number[][] } | null>(null);
+  const tileLayerRef = useRef<L.TileLayer | null>(null);
+  const [isSatellite, setIsSatellite] = useState(false);
   const [fromText, setFromText] = useState('Getting location...');
   const [toText, setToText] = useState('Tap on map');
   const [isGeocodingOrigin, setIsGeocodingOrigin] = useState(false);
@@ -141,6 +143,33 @@ export default function MapMode({
     onHistoryVisibilityChange(isHistoryVisible);
   }, [isHistoryVisible, onHistoryVisibilityChange]);
 
+  // Informative runtime check: warn if tile/routing keys are missing
+  useEffect(() => {
+    const MAPTILER_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY || process.env.NEXT_PUBLIC_MAPTILER_API_KEY;
+    const ORS_KEY = process.env.NEXT_PUBLIC_ORS_KEY || process.env.NEXT_PUBLIC_OPENROUTESERVICE_API_KEY;
+    if (!MAPTILER_KEY) {
+      console.info('MapMode: MapTiler key not set (checked NEXT_PUBLIC_MAPTILER_KEY and NEXT_PUBLIC_MAPTILER_API_KEY) — using OpenStreetMap tiles');
+      toast('Using OpenStreetMap tiles (no MapTiler key set)', { icon: '🗺️' });
+    }
+    if (!ORS_KEY) {
+      console.info('MapMode: ORS key not set (checked NEXT_PUBLIC_ORS_KEY and NEXT_PUBLIC_OPENROUTESERVICE_API_KEY) — routing will be unavailable');
+      toast('Routing disabled: set NEXT_PUBLIC_OPENROUTESERVICE_API_KEY to enable OpenRouteService routing', { icon: '⚠️' });
+    }
+
+    // Dev-only: show masked presence of keys so developer can confirm client build picked them up
+    if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+      const mask = (s?: string) => {
+        if (!s) return '---';
+        if (s.length <= 8) return s.replace(/.(?=.{2})/g, '*');
+        return `${s.slice(0, 4)}...${s.slice(-4)}`;
+      };
+      const mt = MAPTILER_KEY ? mask(MAPTILER_KEY) : 'missing';
+      const ors = ORS_KEY ? mask(ORS_KEY) : 'missing';
+      console.info(`MapMode (dev): MAPTILER=${mt}, ORS=${ors}`);
+      toast(`Dev keys — MAPTILER: ${mt} · ORS: ${ors}`, { duration: 4000 });
+    }
+  }, []);
+
   // Reverse Geocoding
   const reverseGeocode = useCallback(async (latlng: L.LatLng, type: 'origin' | 'destination') => {
     const setLoading = type === 'origin' ? setIsGeocodingOrigin : setIsGeocodingDest;
@@ -150,28 +179,51 @@ export default function MapMode({
     setLoading(true);
     setText('Fetching address...');
 
+    // Prefer OpenRouteService reverse geocoding (CORS-friendly) if API key present
+    const ORS_KEY = process.env.NEXT_PUBLIC_ORS_KEY || process.env.NEXT_PUBLIC_OPENROUTESERVICE_API_KEY;
+    const MAPTILER_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY || process.env.NEXT_PUBLIC_MAPTILER_API_KEY;
+
     try {
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latlng.lat}&lon=${latlng.lng}`
-      );
-      const data = await response.json();
-      if (data && data.display_name) {
-        let displayName = data.display_name;
-        if (displayName.length > 50) {
-          const addr = data.address;
-          const shortAddress = [
-            addr.road || addr.suburb,
-            addr.city || addr.town || addr.village,
-            addr.country,
-          ]
-            .filter(Boolean)
-            .join(', ');
-          displayName = shortAddress || displayName.split(',').slice(0, 3).join(',');
+      if (ORS_KEY) {
+        // ORS reverse geocode
+        const url = `https://api.openrouteservice.org/geocode/reverse?point.lat=${latlng.lat}&point.lon=${latlng.lng}`;
+        const res = await fetch(url, {
+          headers: { Authorization: ORS_KEY },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const feat = data.features && data.features[0];
+          const label = feat?.properties?.label || feat?.properties?.name || feat?.properties?.housenumber || null;
+          if (label) {
+            setText(label.length > 60 ? label.split(',').slice(0, 3).join(',') : label);
+            setLoading(false);
+            return;
+          }
+        } else {
+          console.warn('ORS reverse geocode failed', res.status);
         }
-        setText(displayName);
-      } else {
-        setText(fallbackText);
       }
+
+      if (MAPTILER_KEY) {
+        // MapTiler reverse geocode
+        const url = `https://api.maptiler.com/geocoding/${latlng.lng},${latlng.lat}.json?key=${MAPTILER_KEY}`;
+        const res = await fetch(url);
+        if (res.ok) {
+          const data = await res.json();
+          const feat = data.features && data.features[0];
+          const display = feat?.properties?.label || feat?.place_name || feat?.properties?.formatted || null;
+          if (display) {
+            setText(display.length > 60 ? display.split(',').slice(0, 3).join(',') : display);
+            setLoading(false);
+            return;
+          }
+        } else {
+          console.warn('MapTiler reverse geocode failed', res.status);
+        }
+      }
+
+      // As a last resort, avoid calling Nominatim (CORS) — just show coords
+      setText(fallbackText);
     } catch (error) {
       console.error('Reverse geocoding failed:', error);
       setText(fallbackText);
@@ -187,10 +239,29 @@ export default function MapMode({
       const map = mapRef.current;
       if (!map) return null;
 
+
+      // Remove existing same-type marker via refs to avoid duplicates
+      try {
+        if (type === 'origin' && originRef.current) {
+          originRef.current.remove();
+          originRef.current = null;
+        }
+        if (type === 'destination' && destinationRef.current) {
+          destinationRef.current.remove();
+          destinationRef.current = null;
+        }
+      } catch (err) {
+        // ignore removal errors
+      }
+
       const marker = L.marker(latlng, { icon: MARKER_ICONS[type], draggable }).addTo(map);
 
       if (type === 'destination') marker.bindPopup('🎯 Destination');
 
+      // Track marker in refs to guarantee single instance
+      if (type === 'origin') originRef.current = marker;
+      if (type === 'destination') destinationRef.current = marker;
+      
       if (type === 'origin' && draggable) {
         marker.on('dragend', (e) => {
           const newLatLng = e.target.getLatLng();
@@ -199,6 +270,8 @@ export default function MapMode({
           toast.success('📍 Origin moved', { duration: 1500 });
 
           setMarkers((prev) => {
+            // update origin ref to the dragged marker
+            originRef.current = e.target;
             const updated = { ...prev, origin: e.target };
             if (updated.destination) {
               drawRouteLine(updated.origin!.getLatLng(), updated.destination.getLatLng());
@@ -213,9 +286,62 @@ export default function MapMode({
     [reverseGeocode]
   );
 
+  // Fetch route from OpenRouteService (returns distance meters and coords [lon,lat])
+  // getRouteFromORS: request ORS directions and return distance/duration/coords
+  const getRouteFromORS = useCallback(async (o: L.LatLng, d: L.LatLng) => {
+    const ORS_KEY = process.env.NEXT_PUBLIC_ORS_KEY || process.env.NEXT_PUBLIC_OPENROUTESERVICE_API_KEY || process.env.NEXT_PUBLIC_OPENROUTESERVICE_API_KEY;
+    if (!ORS_KEY) {
+      console.error('MapMode: ORS key not set (checked NEXT_PUBLIC_ORS_KEY and NEXT_PUBLIC_OPENROUTESERVICE_API_KEY) — cannot perform routing');
+      return null;
+    }
+    try {
+      const url = 'https://api.openrouteservice.org/v2/directions/driving-car/geojson';
+      const body = {
+        coordinates: [
+          [o.lng, o.lat],
+          [d.lng, d.lat],
+        ],
+      };
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: ORS_KEY,
+        },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error(`ORS error ${res.status}`);
+      const data = await res.json();
+      const feat = data.features && data.features[0];
+      if (!feat) return null;
+      const distanceMeters = feat.properties?.summary?.distance ?? null;
+      const duration = feat.properties?.summary?.duration ?? null;
+      const coords: number[][] = feat.geometry?.coordinates ?? [];
+      return { distanceMeters, duration, coords };
+    } catch (err) {
+      console.warn('Routing failed', err);
+      return null;
+    }
+  }, []);
+
+  // Fare calculation per requirements:
+  // Base fare: ₱15 for 0–2 km
+  // After 2 km: ₱2 per additional km
+  // distanceInKm: use ORS distance (decimal km)
+  const calculateFare = (distanceInKm: number) => {
+    const base = 15;
+    const extraPerKm = 2; // per km after 2km
+    const roundedDistance = Math.round(distanceInKm * 100) / 100; // round to 2 decimals for display
+    const extraKm = Math.max(0, roundedDistance - 2);
+    const extraCost = Math.round(extraKm * extraPerKm * 100) / 100;
+    const fare = Math.round((base + extraCost) * 100) / 100;
+    return { fare, roundedDistance };
+  };
+
   // Draw Route Line
   const drawRouteLine = useCallback((origin: L.LatLng, dest: L.LatLng) => {
-    if (!mapRef.current) return;
+    const map = mapRef.current;
+    if (!map) return;
 
     if (routeLineRef.current) {
       routeLineRef.current.remove();
@@ -226,46 +352,168 @@ export default function MapMode({
       color: '#000',
       weight: 3,
       opacity: 0.7,
+    }).addTo(mapRef.current!);
+
+    routeLineRef.current = newLine;
+  }, []);
+
+  // Draw a full route polyline from an array of latlngs
+  const drawRoutePolyline = useCallback((latlngs: L.LatLngExpression[]) => {
+    if (!mapRef.current) return;
+
+    if (routeLineRef.current) {
+      routeLineRef.current.remove();
+      routeLineRef.current = null;
+    }
+
+    const newLine = L.polyline(latlngs, {
+      color: '#0b5fff',
+      weight: 4,
+      opacity: 0.9,
     }).addTo(mapRef.current);
 
     routeLineRef.current = newLine;
   }, []);
 
-  // Get User Location
+  // Get User Location (Permissions-aware, logs coords for debugging)
   const getUserLocation = useCallback(() => {
     if (!navigator.geolocation) {
       toast.error('Geolocation not supported');
       return;
     }
 
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const { latitude, longitude } = pos.coords;
-        const latlng = L.latLng(latitude, longitude);
-        const map = mapRef.current;
-        if (map) map.setView(latlng, 15);
-
-        toast.dismiss();
-        toast.success('📍 Location found', { duration: 2000 });
-
-        setMarkers((prev) => {
-          if (prev.origin) {
-            prev.origin.setLatLng(latlng);
-          } else {
-            const newOriginMarker = createMarker(latlng, 'origin', true);
-            return { ...prev, origin: newOriginMarker };
+    // Use Permissions API if available to detect denied state early
+    try {
+      if (navigator.permissions && navigator.permissions.query) {
+        // @ts-ignore
+        navigator.permissions.query({ name: 'geolocation' }).then((status: any) => {
+          if (status.state === 'denied') {
+            toast.error('Location permission denied. Please enable location for this site.');
+            return;
           }
-          return { ...prev };
-        });
 
-        reverseGeocode(latlng, 'origin');
-      },
-      () => {
-        toast.error('Unable to retrieve location');
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              console.debug('Geolocation success coords:', pos.coords);
+              const { latitude, longitude } = pos.coords;
+              const latlng = L.latLng(latitude, longitude);
+              const map = mapRef.current;
+              if (map) map.setView(latlng, 15);
+
+              toast.dismiss();
+              toast.success('📍 Location found', { duration: 2000 });
+
+              setMarkers((prev) => {
+                if (prev.origin && prev.destination) {
+                  try {
+                    prev.origin.remove();
+                  } catch (e) {}
+                  try {
+                    prev.destination?.remove();
+                  } catch (e) {}
+                  if (routeLineRef.current) {
+                    routeLineRef.current.remove();
+                    routeLineRef.current = null;
+                  }
+                  setRouteCache(null);
+                  setFareResult(null);
+                  setIsModalOpen(false);
+                }
+
+                if (prev.origin && !prev.destination) {
+                  try {
+                    prev.origin.setLatLng(latlng);
+                  } catch (e) {}
+                  return { ...prev };
+                }
+
+                const newOriginMarker = createMarker(latlng, 'origin', true);
+                return { origin: newOriginMarker, destination: null };
+              });
+
+              reverseGeocode(latlng, 'origin');
+            },
+            (err) => {
+              console.warn('Geolocation error', err);
+              toast.error('Unable to retrieve location');
+            },
+            { enableHighAccuracy: true, timeout: 10000 }
+          );
+        });
+      } else {
+        // Fallback when Permissions API not available
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            console.debug('Geolocation success coords (no permissions API):', pos.coords);
+            const { latitude, longitude } = pos.coords;
+            const latlng = L.latLng(latitude, longitude);
+            const map = mapRef.current;
+            if (map) map.setView(latlng, 15);
+
+            toast.dismiss();
+            toast.success('📍 Location found', { duration: 2000 });
+
+            setMarkers((prev) => {
+              if (prev.origin && prev.destination) {
+                try {
+                  prev.origin.remove();
+                } catch (e) {}
+                try {
+                  prev.destination?.remove();
+                } catch (e) {}
+                if (routeLineRef.current) {
+                  routeLineRef.current.remove();
+                  routeLineRef.current = null;
+                }
+                setRouteCache(null);
+                setFareResult(null);
+                setIsModalOpen(false);
+              }
+              if (prev.origin && !prev.destination) {
+                try {
+                  prev.origin.setLatLng(latlng);
+                } catch (e) {}
+                return { ...prev };
+              }
+              const newOriginMarker = createMarker(latlng, 'origin', true);
+              return { origin: newOriginMarker, destination: null };
+            });
+
+            reverseGeocode(latlng, 'origin');
+          },
+          () => {
+            toast.error('Unable to retrieve location');
+          },
+          { enableHighAccuracy: true, timeout: 10000 }
+        );
+      }
+    } catch (ex) {
+      console.error('getUserLocation check failed', ex);
+      toast.error('Unable to request location');
+    }
   }, [createMarker, reverseGeocode]);
+
+  // When the MapMode component mounts (e.g., user clicked Map Mode), attempt to get user location
+  useEffect(() => {
+    // Try immediate; if map not ready yet, wait until mapRef exists
+    if (mapRef.current) {
+      getUserLocation();
+      return;
+    }
+
+    let mounted = true;
+    const id = setInterval(() => {
+      if (!mounted) return;
+      if (mapRef.current) {
+        getUserLocation();
+        clearInterval(id);
+      }
+    }, 400);
+    return () => {
+      mounted = false;
+      clearInterval(id);
+    };
+  }, [getUserLocation]);
 
   // Initialize Map
   useEffect(() => {
@@ -276,10 +524,23 @@ export default function MapMode({
       MAP_CONFIG.ZOOM
     );
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    // Use MapTiler tiles (streets-v2) when API key is provided, otherwise fallback to OpenStreetMap
+    const MAPTILER_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY || process.env.NEXT_PUBLIC_MAPTILER_API_KEY;
+    const streetsUrl = MAPTILER_KEY
+      ? `https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=${MAPTILER_KEY}`
+      : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+    const satelliteUrl = MAPTILER_KEY
+      ? `https://api.maptiler.com/maps/hybrid/{z}/{x}/{y}.png?key=${MAPTILER_KEY}`
+      : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+
+    const initialUrl = isSatellite ? satelliteUrl : streetsUrl;
+    const initialAttribution = MAPTILER_KEY ? '© MapTiler © OpenStreetMap contributors' : '© OpenStreetMap';
+
+    const tl = L.tileLayer(initialUrl, {
       maxZoom: MAP_CONFIG.MAX_ZOOM,
-      attribution: '© OpenStreetMap',
+      attribution: initialAttribution,
     }).addTo(map);
+    tileLayerRef.current = tl;
 
     map.whenReady(() => {
       setIsMapLoading(false);
@@ -296,57 +557,140 @@ export default function MapMode({
     };
   }, [getUserLocation]);
 
+  // Toggle satellite/street tiles
+  useEffect(() => {
+    if (!mapRef.current || !tileLayerRef.current) return;
+    const MAPTILER_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY || process.env.NEXT_PUBLIC_MAPTILER_API_KEY;
+    const streetsUrl = MAPTILER_KEY
+      ? `https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=${MAPTILER_KEY}`
+      : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+    const satelliteUrl = MAPTILER_KEY
+      ? `https://api.maptiler.com/maps/hybrid/{z}/{x}/{y}.png?key=${MAPTILER_KEY}`
+      : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+
+    const newUrl = isSatellite ? satelliteUrl : streetsUrl;
+    // Remove old and add new tileLayer
+    try {
+      mapRef.current.removeLayer(tileLayerRef.current!);
+    } catch (e) {
+      // ignore
+    }
+    const newTl = L.tileLayer(newUrl, {
+      maxZoom: MAP_CONFIG.MAX_ZOOM,
+      attribution: MAPTILER_KEY ? '© MapTiler © OpenStreetMap contributors' : '© OpenStreetMap',
+    }).addTo(mapRef.current);
+    tileLayerRef.current = newTl;
+  }, [isSatellite]);
+
   // Handle Map Click
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
     const onClick = (e: L.LeafletMouseEvent) => {
-      if (isOriginMode) {
-        setMarkers((prev) => {
-          const updated = { ...prev };
-          if (updated.origin) {
-            map.removeLayer(updated.origin);
-            updated.origin = createMarker(e.latlng, 'origin', true);
-          } else {
-            updated.origin = createMarker(e.latlng, 'origin', true);
-          }
-          if (updated.origin && updated.destination) {
-            drawRouteLine(updated.origin.getLatLng(), updated.destination.getLatLng());
-          }
-          return updated;
-        });
+      // Strict two-marker system:
+      // 1st click -> set origin (green)
+      // 2nd click -> set destination (red)
+      // 3rd click (after both exist) -> RESET and treat as new origin
+      setRouteCache(null);
 
-        reverseGeocode(e.latlng, 'origin');
-        toast.dismiss();
-        toast.success('📍 Origin updated');
-        setIsOriginMode(false);
-      } else {
-        setMarkers((prev) => {
-          const updated = { ...prev };
-          if (destinationRef.current) {
-            map.removeLayer(destinationRef.current);
+      setMarkers((prev) => {
+        // If no origin, set origin (remove previous origin if any)
+        if (!prev.origin && !prev.destination) {
+          if (prev.origin) {
+            try {
+              map.removeLayer(prev.origin);
+            } catch (e) {}
           }
-          const newDest = createMarker(e.latlng, 'destination');
-          destinationRef.current = newDest;
-          updated.destination = newDest;
+          const m = createMarker(e.latlng, 'origin', true);
+          reverseGeocode(e.latlng, 'origin');
+          toast.dismiss();
+          toast.success('📍 Origin set');
+          return { origin: m, destination: null };
+        }
 
-          if (updated.origin && updated.destination) {
-            drawRouteLine(updated.origin.getLatLng(), updated.destination.getLatLng());
+        // If origin exists but no destination, set destination
+        if (prev.origin && !prev.destination) {
+          if (prev.destination) {
+            try {
+              map.removeLayer(prev.destination);
+            } catch (e) {}
+            destinationRef.current = null;
           }
-          return updated;
-        });
-        reverseGeocode(e.latlng, 'destination');
-        toast.dismiss();
-        toast.success('🎯 Destination set');
-      }
+          const m = createMarker(e.latlng, 'destination');
+          destinationRef.current = m;
+          reverseGeocode(e.latlng, 'destination');
+          toast.dismiss();
+          toast.success('🎯 Destination set');
+          // draw a temporary straight line until ORS responds
+          if (prev.origin && m) drawRouteLine(prev.origin.getLatLng(), m.getLatLng());
+          return { ...prev, destination: m };
+        }
+
+        // Both exist -> reset markers and set new origin at clicked location
+        if (prev.origin && prev.destination) {
+          // remove existing markers
+          try {
+            if (prev.origin) map.removeLayer(prev.origin);
+            if (prev.destination) map.removeLayer(prev.destination);
+          } catch (err) {
+            // ignore
+          }
+          // remove existing polyline
+          if (routeLineRef.current) {
+            routeLineRef.current.remove();
+            routeLineRef.current = null;
+          }
+          // clear stored data
+          setRouteCache(null);
+          setFareResult(null);
+          setIsModalOpen(false);
+          setFromText('Getting location...');
+          setToText('Tap on map');
+
+          const m = createMarker(e.latlng, 'origin', true);
+          reverseGeocode(e.latlng, 'origin');
+          toast.dismiss();
+          toast.success('📍 Origin set');
+          return { origin: m, destination: null };
+        }
+
+        return prev;
+      });
     };
 
     map.on('click', onClick);
     return () => {
       map.off('click', onClick);
     };
-  }, [isOriginMode, createMarker, drawRouteLine, reverseGeocode]);
+  }, [createMarker, drawRouteLine, reverseGeocode]);
+
+  // When both markers exist, attempt to fetch the ORS route and draw it (caches result)
+  useEffect(() => {
+    const tryRoute = async () => {
+      if (!markers.origin || !markers.destination) return;
+      const o = markers.origin.getLatLng();
+      const d = markers.destination.getLatLng();
+
+      // use ORS routing util — must use ORS; no straight-line fallback
+      const route = await getRouteFromORS(o, d);
+      if (route && route.distanceMeters != null && route.coords && route.coords.length) {
+        setRouteCache(route as any);
+        const routeLatLngs = route.coords.map((c: number[]) => L.latLng(c[1], c[0]));
+        drawRoutePolyline(routeLatLngs);
+      } else {
+        // Routing failed — inform the user and clear any drawn temporary line
+        toast.error('Routing failed: OpenRouteService did not return a route.');
+        if (routeLineRef.current) {
+          routeLineRef.current.remove();
+          routeLineRef.current = null;
+        }
+      }
+    };
+
+    tryRoute();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [markers.origin, markers.destination]);
 
   // Calculate Fare
   const handleCalculate = useCallback(() => {
@@ -354,32 +698,53 @@ export default function MapMode({
       toast.error('Please set both origin and destination');
       return;
     }
-
     const origin = markers.origin.getLatLng();
     const dest = markers.destination.getLatLng();
-    const distKm = haversineDistance(origin.lat, origin.lng, dest.lat, dest.lng);
-    const result = calculateMapFare(distKm, gasPrice, passengerType, hasBaggage);
 
-    const finalResult: FareCalculation = {
-      fare: result.fare,
-      routeName: 'Map Route',
-      distance: result.estimatedRoadDist,
-      passengerType,
-      gasPrice,
-      hasBaggage,
-      regularFare: result.regularFare,
-      studentFare: result.studentFare,
-      rateUsed: result.rateUsed,
-    };
+    (async () => {
+      // Must have ORS route available — do not fall back to straight-line
+      let route = routeCache as any;
+      if (!route || !route.distanceMeters) {
+        route = await getRouteFromORS(origin, dest);
+        if (!route || !route.distanceMeters) {
+          toast.error('Routing failed: cannot calculate fare without a valid road route.');
+          return;
+        }
+        setRouteCache(route as any);
+      }
+      const distKm = (route.distanceMeters as number) / 1000;
+      const routeLatLngs = route.coords.map((c: number[]) => [c[1], c[0]]);
 
-    onCalculate(finalResult);
-    setFareResult(finalResult);
-    setIsModalOpen(true);
-    toast.dismiss();
+      // Compute fare using local rule
+      const { fare, roundedDistance } = calculateFare(distKm);
 
-    const originText = fromText.includes('Lat:') ? 'GPS Coordinates' : fromText;
-    const destText = toText.includes('Lat:') ? 'GPS Coordinates' : toText;
-    logFareCalculation(originText, destText, 'map');
+      const finalResult: FareCalculation = {
+        fare,
+        routeName: 'Map Route',
+        distance: roundedDistance,
+        passengerType,
+        gasPrice,
+        hasBaggage,
+        regularFare: fare,
+        studentFare: fare,
+        rateUsed: 2,
+      };
+
+      const finalResultWithGeometry: any = {
+        ...finalResult,
+        routeGeometry: routeLatLngs,
+        durationSec: route.duration ?? null,
+      };
+
+      onCalculate(finalResultWithGeometry);
+      setFareResult(finalResult);
+      setIsModalOpen(true);
+      toast.dismiss();
+
+      const originText = fromText.includes('Lat:') ? 'GPS Coordinates' : fromText;
+      const destText = toText.includes('Lat:') ? 'GPS Coordinates' : toText;
+      logFareCalculation(originText, destText, 'map');
+    })();
   }, [markers, gasPrice, passengerType, hasBaggage, onCalculate, fromText, toText]);
 
   // Panel Drag Gesture
@@ -464,6 +829,30 @@ export default function MapMode({
               d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
             />
           </svg>
+        </button>
+        {/* Satellite Toggle */}
+        <button
+          type="button"
+          onClick={() => {
+            setIsSatellite((s) => !s);
+            toast.dismiss();
+            toast(`Tile: ${!isSatellite ? 'Satellite' : 'Streets'}`);
+          }}
+          className="w-12 h-12 rounded-full shadow-lg bg-white hover:bg-gray-100 flex items-center justify-center"
+          title="Toggle Satellite"
+        >
+          🛰️
+        </button>
+        {/* Locate Button */}
+        <button
+          type="button"
+          onClick={() => {
+            getUserLocation();
+          }}
+          className="w-12 h-12 rounded-full shadow-lg bg-white hover:bg-gray-100 flex items-center justify-center"
+          title="Locate Me"
+        >
+          📡
         </button>
       </div>
 
