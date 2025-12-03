@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { midsayapProper, outsideMidsayap } from '../lib/routeData';
 import { secondaryPassengerIssues, secondaryDriverIssues, miscIssueText } from '../lib/issueData';
+import { addReport } from '../services/reports';
 
 export type FormData = {
   issueType: string[];
@@ -36,7 +37,6 @@ export function useReportForm() {
   const [formData, setFormData] = useState<FormData>(initialFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [availableDestinations, setAvailableDestinations] = useState<string[]>([]);
-  const [isOtherIssuesVisible, setIsOtherIssuesVisible] = useState(false);
 
   useEffect(() => {
     // Auto-fill date and time when the hook is first used
@@ -67,11 +67,6 @@ export function useReportForm() {
     }
   }, [formData.locationFrom, formData.locationTo]);
 
-  useEffect(() => {
-    const isOtherSelected = formData.issueType.some(issue => secondaryPassengerIssues.includes(issue) || secondaryDriverIssues.includes(issue) || issue === miscIssueText);
-    setIsOtherIssuesVisible(isOtherSelected);
-  }, [formData.issueType]);
-
   const handleNext = () => {
     if (step === 2 && formData.issueType.length === 0) {
       toast.error('Please select at least one issue type.');
@@ -92,20 +87,24 @@ export function useReportForm() {
     setStep((prev) => prev - 1);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.description.trim()) {
       toast.error('Please describe what happened.');
       return;
     }
-    
+
     setIsSubmitting(true);
-    console.log('Submitting report:', formData);
-    
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      await addReport(formData);
+      toast.success('Report submitted successfully!');
       setStep(6); // Go to success step
-    }, 1500);
+    } catch (error) {
+      console.error("Error submitting report:", error);
+      toast.error('Failed to submit report. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const resetForm = () => {
@@ -113,5 +112,5 @@ export function useReportForm() {
     setFormData(initialFormData);
   }
 
-  return { step, setStep, formData, setFormData, isSubmitting, availableDestinations, isOtherIssuesVisible, setIsOtherIssuesVisible, handleNext, handleBack, handleSubmit, resetForm };
+  return { step, setStep, formData, setFormData, isSubmitting, availableDestinations, handleNext, handleBack, handleSubmit, resetForm };
 }

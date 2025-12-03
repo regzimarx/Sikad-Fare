@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { Toaster, toast } from 'react-hot-toast';
-import { midsayapProper, outsideMidsayap } from '../../lib/routeData'; // Import location data
 import { useReportForm } from '../../hooks/useReportForm';
 import { StepRenderer } from '../../components/StepRenderer';
 
@@ -47,8 +46,7 @@ export default function ReportPage() {
             step={step}
             formData={formData}
             setFormData={setFormData}
-            midsayapProper={midsayapProper} // Pass location data
-            outsideMidsayap={outsideMidsayap} // Pass location data
+            availableDestinations={availableDestinations}
           />
 
           {/* Navigation Buttons */}

@@ -12,14 +12,14 @@ import {
   miscIssueText,
   reporterTypes,
 } from '../lib/issueData'; // Ensure this path is correct
+import { midsayapProper, outsideMidsayap } from '../lib/routeData';
 import LocationSelector from './form/LocationSelector'; // Import LocationSelector
 
 interface StepRendererProps {
   step: number;
   formData: FormData;
   setFormData: React.Dispatch<React.SetStateAction<FormData>>;
-  midsayapProper: string[]; // Add location data props
-  outsideMidsayap: string[]; // Add location data props
+  availableDestinations: string[];
 }
 
 // Reusable button components (could be moved to their own file too)
@@ -47,7 +47,7 @@ const CompactButton = ({ label, onClick, isSelected }: { label: string; onClick:
   </button>
 );
 
-export function StepRenderer({ step, formData, setFormData, midsayapProper, outsideMidsayap }: StepRendererProps) {
+export function StepRenderer({ step, formData, setFormData, availableDestinations }: StepRendererProps) {
   // Get the base issues depending on the reporter type
   const baseIssues =
     formData.reporterType === 'Driver'
@@ -82,23 +82,6 @@ export function StepRenderer({ step, formData, setFormData, midsayapProper, outs
   };
 
   switch (step) {
-    case 1: // Who are you?
-      return (
-        <div>
-          <h2 className="text-2xl font-bold mb-4 text-center">Step 1: Who are you?</h2>
-          <div className="flex flex-col space-y-3">
-            {reporterTypes.map((reporter) => (
-              <BigButton
-                key={reporter}
-                label={reporter}
-                isSelected={formData.reporterType === reporter}
-                onClick={() => setFormData({ ...formData, reporterType: reporter, issueType: [], miscIssueDescription: '' })}
-              />
-            ))}
-          </div>
-          <p className="mt-4 text-sm text-gray-500 text-center">Select your role in this incident.</p>
-        </div>
-      );
     case 1: // Who are you?
       return (
         <div>
@@ -187,13 +170,7 @@ export function StepRenderer({ step, formData, setFormData, midsayapProper, outs
               icon="🎯"
               value={formData.locationTo}
               onChange={(value) => setFormData({ ...formData, locationTo: value })}
-              options={
-                formData.locationFrom
-                  ? midsayapProper.includes(formData.locationFrom)
-                    ? [...midsayapProper.filter(place => place !== formData.locationFrom), ...outsideMidsayap]
-                    : midsayapProper
-                  : []
-              }
+              options={availableDestinations}
               placeholder="Select destination..."
               disabled={!formData.locationFrom}
             />
