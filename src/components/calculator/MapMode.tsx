@@ -17,6 +17,10 @@ import FareResult from '../FareResult';
 // Firebase Service Imports
 import { logFareCalculation } from '../../services/analytics';
 
+// API Keys
+const MAPTILER_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY || process.env.NEXT_PUBLIC_MAPTILER_API_KEY;
+const ORS_KEY = process.env.NEXT_PUBLIC_ORS_KEY || process.env.NEXT_PUBLIC_OPENROUTESERVICE_API_KEY;
+
 // Configuration Constants
 const MAP_CONFIG = {
   CENTER: [7.1915, 124.5385] as [number, number],
@@ -145,15 +149,13 @@ export default function MapMode({
 
   // Informative runtime check: warn if tile/routing keys are missing
   useEffect(() => {
-    const MAPTILER_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY || process.env.NEXT_PUBLIC_MAPTILER_API_KEY;
-    const ORS_KEY = process.env.NEXT_PUBLIC_ORS_KEY || process.env.NEXT_PUBLIC_OPENROUTESERVICE_API_KEY;
     if (!MAPTILER_KEY) {
       console.info('MapMode: MapTiler key not set (checked NEXT_PUBLIC_MAPTILER_KEY and NEXT_PUBLIC_MAPTILER_API_KEY) — using OpenStreetMap tiles');
       toast('Using OpenStreetMap tiles (no MapTiler key set)', { icon: '🗺️' });
     }
     if (!ORS_KEY) {
       console.info('MapMode: ORS key not set (checked NEXT_PUBLIC_ORS_KEY and NEXT_PUBLIC_OPENROUTESERVICE_API_KEY) — routing will be unavailable');
-      toast('Routing disabled: set NEXT_PUBLIC_OPENROUTESERVICE_API_KEY to enable OpenRouteService routing', { icon: '⚠️' });
+      toast('Routing is disabled. Set an ORS API key to enable it.', { icon: '⚠️' });
     }
 
     // Dev-only: show masked presence of keys so developer can confirm client build picked them up
@@ -163,10 +165,10 @@ export default function MapMode({
         if (s.length <= 8) return s.replace(/.(?=.{2})/g, '*');
         return `${s.slice(0, 4)}...${s.slice(-4)}`;
       };
-      const mt = MAPTILER_KEY ? mask(MAPTILER_KEY) : 'missing';
-      const ors = ORS_KEY ? mask(ORS_KEY) : 'missing';
-      console.info(`MapMode (dev): MAPTILER=${mt}, ORS=${ors}`);
-      toast(`Dev keys — MAPTILER: ${mt} · ORS: ${ors}`, { duration: 4000 });
+      const mtStatus = MAPTILER_KEY ? `loaded (${mask(MAPTILER_KEY)})` : 'MISSING';
+      const orsStatus = ORS_KEY ? `loaded (${mask(ORS_KEY)})` : 'MISSING';
+      console.info(`MapMode (dev): MAPTILER=${mtStatus}, ORS=${orsStatus}`);
+      toast(`Dev keys — MAPTILER: ${mtStatus} · ORS: ${orsStatus}`, { duration: 4000 });
     }
   }, []);
 
@@ -180,9 +182,6 @@ export default function MapMode({
     setText('Fetching address...');
 
     // Prefer OpenRouteService reverse geocoding (CORS-friendly) if API key present
-    const ORS_KEY = process.env.NEXT_PUBLIC_ORS_KEY || process.env.NEXT_PUBLIC_OPENROUTESERVICE_API_KEY;
-    const MAPTILER_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY || process.env.NEXT_PUBLIC_MAPTILER_API_KEY;
-
     try {
       if (ORS_KEY) {
         // ORS reverse geocode
@@ -240,20 +239,6 @@ export default function MapMode({
       if (!map) return null;
 
 
-      // Remove existing same-type marker via refs to avoid duplicates
-      try {
-        if (type === 'origin' && originRef.current) {
-          originRef.current.remove();
-          originRef.current = null;
-        }
-        if (type === 'destination' && destinationRef.current) {
-          destinationRef.current.remove();
-          destinationRef.current = null;
-        }
-      } catch (err) {
-        // ignore removal errors
-      }
-
       const marker = L.marker(latlng, { icon: MARKER_ICONS[type], draggable }).addTo(map);
 
       if (type === 'destination') marker.bindPopup('🎯 Destination');
@@ -289,9 +274,9 @@ export default function MapMode({
   // Fetch route from OpenRouteService (returns distance meters and coords [lon,lat])
   // getRouteFromORS: request ORS directions and return distance/duration/coords
   const getRouteFromORS = useCallback(async (o: L.LatLng, d: L.LatLng) => {
-    const ORS_KEY = process.env.NEXT_PUBLIC_ORS_KEY || process.env.NEXT_PUBLIC_OPENROUTESERVICE_API_KEY || process.env.NEXT_PUBLIC_OPENROUTESERVICE_API_KEY;
     if (!ORS_KEY) {
       console.error('MapMode: ORS key not set (checked NEXT_PUBLIC_ORS_KEY and NEXT_PUBLIC_OPENROUTESERVICE_API_KEY) — cannot perform routing');
+      toast.error('Routing unavailable: ORS API key is not configured.');
       return null;
     }
     try {
@@ -375,6 +360,26 @@ export default function MapMode({
     routeLineRef.current = newLine;
   }, []);
 
+  // Reset Map State
+  const resetMapState = useCallback(() => {
+    if (originRef.current) {
+      originRef.current.remove();
+      originRef.current = null;
+    }
+    if (destinationRef.current) {
+      destinationRef.current.remove();
+      destinationRef.current = null;
+    }
+    if (routeLineRef.current) {
+      routeLineRef.current.remove();
+      routeLineRef.current = null;
+    }
+    setMarkers({ origin: null, destination: null });
+    setRouteCache(null);
+    setFareResult(null);
+    setIsModalOpen(false);
+  }, []);
+
   // Get User Location (Permissions-aware, logs coords for debugging)
   const getUserLocation = useCallback(() => {
     if (!navigator.geolocation) {
@@ -403,30 +408,8 @@ export default function MapMode({
               toast.dismiss();
               toast.success('📍 Location found', { duration: 2000 });
 
-              setMarkers((prev) => {
-                if (prev.origin && prev.destination) {
-                  try {
-                    prev.origin.remove();
-                  } catch (e) {}
-                  try {
-                    prev.destination?.remove();
-                  } catch (e) {}
-                  if (routeLineRef.current) {
-                    routeLineRef.current.remove();
-                    routeLineRef.current = null;
-                  }
-                  setRouteCache(null);
-                  setFareResult(null);
-                  setIsModalOpen(false);
-                }
-
-                if (prev.origin && !prev.destination) {
-                  try {
-                    prev.origin.setLatLng(latlng);
-                  } catch (e) {}
-                  return { ...prev };
-                }
-
+              resetMapState();
+              setMarkers(() => {
                 const newOriginMarker = createMarker(latlng, 'origin', true);
                 return { origin: newOriginMarker, destination: null };
               });
@@ -453,28 +436,8 @@ export default function MapMode({
             toast.dismiss();
             toast.success('📍 Location found', { duration: 2000 });
 
-            setMarkers((prev) => {
-              if (prev.origin && prev.destination) {
-                try {
-                  prev.origin.remove();
-                } catch (e) {}
-                try {
-                  prev.destination?.remove();
-                } catch (e) {}
-                if (routeLineRef.current) {
-                  routeLineRef.current.remove();
-                  routeLineRef.current = null;
-                }
-                setRouteCache(null);
-                setFareResult(null);
-                setIsModalOpen(false);
-              }
-              if (prev.origin && !prev.destination) {
-                try {
-                  prev.origin.setLatLng(latlng);
-                } catch (e) {}
-                return { ...prev };
-              }
+            resetMapState();
+            setMarkers(() => {
               const newOriginMarker = createMarker(latlng, 'origin', true);
               return { origin: newOriginMarker, destination: null };
             });
@@ -491,7 +454,7 @@ export default function MapMode({
       console.error('getUserLocation check failed', ex);
       toast.error('Unable to request location');
     }
-  }, [createMarker, reverseGeocode]);
+  }, [createMarker, reverseGeocode, resetMapState]);
 
   // When the MapMode component mounts (e.g., user clicked Map Mode), attempt to get user location
   useEffect(() => {
@@ -525,7 +488,6 @@ export default function MapMode({
     );
 
     // Use MapTiler tiles (streets-v2) when API key is provided, otherwise fallback to OpenStreetMap
-    const MAPTILER_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY || process.env.NEXT_PUBLIC_MAPTILER_API_KEY;
     const streetsUrl = MAPTILER_KEY
       ? `https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=${MAPTILER_KEY}`
       : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
@@ -560,7 +522,6 @@ export default function MapMode({
   // Toggle satellite/street tiles
   useEffect(() => {
     if (!mapRef.current || !tileLayerRef.current) return;
-    const MAPTILER_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY || process.env.NEXT_PUBLIC_MAPTILER_API_KEY;
     const streetsUrl = MAPTILER_KEY
       ? `https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=${MAPTILER_KEY}`
       : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
@@ -597,12 +558,10 @@ export default function MapMode({
       setMarkers((prev) => {
         // If no origin, set origin (remove previous origin if any)
         if (!prev.origin && !prev.destination) {
-          if (prev.origin) {
-            try {
-              map.removeLayer(prev.origin);
-            } catch (e) {}
-          }
+          if (originRef.current) originRef.current.remove();
+
           const m = createMarker(e.latlng, 'origin', true);
+          originRef.current = m;
           reverseGeocode(e.latlng, 'origin');
           toast.dismiss();
           toast.success('📍 Origin set');
@@ -611,12 +570,8 @@ export default function MapMode({
 
         // If origin exists but no destination, set destination
         if (prev.origin && !prev.destination) {
-          if (prev.destination) {
-            try {
-              map.removeLayer(prev.destination);
-            } catch (e) {}
-            destinationRef.current = null;
-          }
+          if (destinationRef.current) destinationRef.current.remove();
+
           const m = createMarker(e.latlng, 'destination');
           destinationRef.current = m;
           reverseGeocode(e.latlng, 'destination');
@@ -629,26 +584,14 @@ export default function MapMode({
 
         // Both exist -> reset markers and set new origin at clicked location
         if (prev.origin && prev.destination) {
-          // remove existing markers
-          try {
-            if (prev.origin) map.removeLayer(prev.origin);
-            if (prev.destination) map.removeLayer(prev.destination);
-          } catch (err) {
-            // ignore
-          }
-          // remove existing polyline
-          if (routeLineRef.current) {
-            routeLineRef.current.remove();
-            routeLineRef.current = null;
-          }
-          // clear stored data
-          setRouteCache(null);
-          setFareResult(null);
-          setIsModalOpen(false);
+          resetMapState();
+
           setFromText('Getting location...');
           setToText('Tap on map');
 
           const m = createMarker(e.latlng, 'origin', true);
+          originRef.current = m;
+
           reverseGeocode(e.latlng, 'origin');
           toast.dismiss();
           toast.success('📍 Origin set');
@@ -663,7 +606,7 @@ export default function MapMode({
     return () => {
       map.off('click', onClick);
     };
-  }, [createMarker, drawRouteLine, reverseGeocode]);
+  }, [createMarker, drawRouteLine, reverseGeocode, resetMapState]);
 
   // When both markers exist, attempt to fetch the ORS route and draw it (caches result)
   useEffect(() => {

@@ -1,5 +1,6 @@
 import React from 'react';
 import NavigationWrapper from '@/components/NavigationWrapper'; 
+import SupportButton from '@/components/SupportButton';
 import './globals.css';
 
 export const metadata = {
@@ -15,9 +16,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <NavigationWrapper>
-            {children}
-        </NavigationWrapper>
+        <main>
+          <NavigationWrapper>
+              {children}
+          </NavigationWrapper>
+        </main>
+        <SupportButton />
       </body>
     </html>
   );
