@@ -1,4 +1,4 @@
-// src/components/SupportButton.tsx
+
 'use client';
 
 import { useState, useEffect, useRef } from 'react';

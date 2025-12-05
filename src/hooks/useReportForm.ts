@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { midsayapProper, outsideMidsayap } from '../lib/routeData';
-import { secondaryPassengerIssues, secondaryDriverIssues, miscIssueText } from '../lib/issueData';
+import { miscIssueText } from '../lib/issueData';
 import { addReport } from '../services/reports';
 
 export type FormData = {

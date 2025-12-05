@@ -7,7 +7,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import toast from 'react-hot-toast';
 import { PassengerType, FareCalculation, HistoryEntry } from '../../lib/types';
-import { CalculationMode } from '../../lib/types'; // Import CalculationMode
+import { CalculationMode } from '../../lib/types'; 
 import GasPriceSelector from '../form/GasPriceSelector';
 import PassengerSelector from '../form/PassengerSelector';
 import BaggageSelector from '../form/BaggageSelector';

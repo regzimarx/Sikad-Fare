@@ -8,12 +8,11 @@ import {
   primaryPassengerIssues,
   secondaryDriverIssues,
   secondaryPassengerIssues,
-  otherIssueText,
   miscIssueText,
   reporterTypes,
-} from '../lib/issueData'; // Ensure this path is correct
+} from '../lib/issueData'; 
 import { midsayapProper, outsideMidsayap } from '../lib/routeData';
-import LocationSelector from './form/LocationSelector'; // Import LocationSelector
+import LocationSelector from './form/LocationSelector'; 
 
 interface StepRendererProps {
   step: number;
@@ -22,7 +21,7 @@ interface StepRendererProps {
   availableDestinations: string[];
 }
 
-// Reusable button components (could be moved to their own file too)
+// Reusable button components
 const BigButton = ({ label, onClick, isSelected }: { label: string; onClick: () => void; isSelected: boolean }) => (
   <button
     type="button"
