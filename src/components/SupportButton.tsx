@@ -4,6 +4,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 
+import { logSupportButtonClick } from '../services/analytics';
 type Position = {
   top?: string;
   bottom?: string;
@@ -80,6 +81,7 @@ const SupportButton = () => {
       href="https://www.buymeacoffee.com/mattykun"
       target="_blank"
       rel="noopener noreferrer"
+      onClick={logSupportButtonClick}
       style={{ top: currentPosition.top, bottom: currentPosition.bottom, left: currentPosition.left, right: currentPosition.right }}
       className={`
         group fixed z-50

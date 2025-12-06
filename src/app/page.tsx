@@ -1,14 +1,14 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import toast from 'react-hot-toast';
 import { useFareCalculator } from '../hooks/useFareCalculator';
 import ModeToggle from '../components/ModeToggle';
 
 import { getFares, Fare } from '../services/fares';
-import { logFareCalculation } from '../services/analytics';
+import { logFareCalculation, logQrCodeScan } from '../services/analytics';
 import { getAppConfig, AppConfig } from '../services/config';
 import { FaTimes } from 'react-icons/fa';
 
@@ -26,6 +26,8 @@ import RouteMode from '../components/calculator/RouteMode';
 export default function Calculator() {
   const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isCalculating, setIsCalculating] = useState(false);
+  const searchParams = useSearchParams();
 
   const {
     state,
@@ -48,15 +50,28 @@ export default function Calculator() {
   const handleHistoryVisibilityChange = useCallback((isVisible: boolean) => {
     setIsHistoryOpen(isVisible);
   }, []);
+
+  // --- Analytics: Track QR Code Scans ---
+  useEffect(() => {
+    // Check if the page was loaded from a QR code scan
+    if (searchParams.get('utm_source') === 'qr') {
+      logQrCodeScan();
+    }
+  }, [searchParams]);
   
   // --- Main Calculation Handler (for Route Mode) ---
   const handleCalculate = async () => {
+    if (isCalculating) return; // Prevent multiple simultaneous calculations
+
+    setIsCalculating(true);
+
     // 1. Try local calculation first
     const localResult = calculateFare();
 
     // 2. If local succeeds, log and finish
     if (localResult) {
-      logFareCalculation(state.origin, state.destination, 'route');
+      logFareCalculation(state.origin, state.destination, 'route', state.passengerType);
+      setIsCalculating(false); // Reset on completion
       return;
     }
 
@@ -64,7 +79,6 @@ export default function Calculator() {
     try {
       toast.loading("Checking for special routes...");
       const firestoreFares: Fare[] = await getFares(state.origin, state.destination);
-      toast.dismiss();
 
       if (firestoreFares.length > 0) {
         const firestoreFare = firestoreFares[0];
@@ -80,13 +94,28 @@ export default function Calculator() {
           rateUsed: 0,
         };
         setMapResult(calculatedFare);
-        logFareCalculation(state.origin, state.destination, 'route');
+        logFareCalculation(state.origin, state.destination, 'route', state.passengerType);
+      } else {
+        // Handle case where no special route is found
+        toast.error("No special route found. Please check origin/destination.");
       }
     } catch (error) {
-      toast.dismiss();
-      toast.error("Error checking for special routes.");
+      toast.error("An error occurred while checking for special routes.");
       console.error("Firestore getFares error:", error);
+    } finally {
+      toast.dismiss(); // Ensure toast is always dismissed
+      setIsCalculating(false); // Ensure we always reset the calculating state
     }
+  };
+
+  // --- Calculation Handler for Map Mode ---
+  const handleMapCalculate = (result: FareCalculation) => {
+    // 1. Set the result in the state
+    setMapResult(result);
+
+    // 2. Log the event to analytics
+    // For map mode, origin/destination are not text inputs, so we can use placeholders.
+    logFareCalculation('map_origin', 'map_destination', 'map', result.passengerType);
   };
 
   return (
@@ -134,7 +163,7 @@ export default function Calculator() {
                   onGasPriceChange={setGasPrice}
                   onPassengerTypeChange={setPassengerType}
                   onBaggageChange={setHasBaggage}
-                  onCalculate={setMapResult}
+                  onCalculate={handleMapCalculate}
                   onError={setError}
                   history={state.history}
                   clearHistory={clearHistory}

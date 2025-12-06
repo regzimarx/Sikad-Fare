@@ -15,7 +15,6 @@ import ModeToggle from '../ModeToggle';
 import Modal from '../Modal';
 import FareResult from '../FareResult';
 // Firebase Service Imports
-import { logFareCalculation } from '../../services/analytics';
 
 // API Keys
 const MAPTILER_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY || process.env.NEXT_PUBLIC_MAPTILER_API_KEY;
@@ -684,9 +683,6 @@ export default function MapMode({
       setIsModalOpen(true);
       toast.dismiss();
 
-      const originText = fromText.includes('Lat:') ? 'GPS Coordinates' : fromText;
-      const destText = toText.includes('Lat:') ? 'GPS Coordinates' : toText;
-      logFareCalculation(originText, destText, 'map');
     })();
   }, [markers, gasPrice, passengerType, hasBaggage, onCalculate, fromText, toText]);
 
