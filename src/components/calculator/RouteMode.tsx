@@ -8,7 +8,9 @@ import BaggageSelector from '../form/BaggageSelector';
 import ModeToggle from '../ModeToggle'; // Import ModeToggle
 import { CalculationMode } from '../../lib/types'; // Import CalculationMode
 import { midsayapProper, outsideMidsayap } from '../../lib/routeData';
+import { logHistoryOpened, logHistoryCleared } from '../../services/analytics';
 import { HistoryEntry, CalculatorState, PassengerType } from '../../lib/types';
+import HistorySheet from '../HistorySheet';
 
 // Define the types for the props this component will receive
 interface RouteModeProps {
@@ -28,37 +30,6 @@ interface RouteModeProps {
   onModeChange: (mode: CalculationMode) => void; // Handler to change mode
   isHistoryOpen: boolean; // Prop from parent indicating if *any* history is open
 }
-
-// Helper to format passenger type for display
-const formatPassengerType = (type: PassengerType['type'], quantity: number) => {
-  const typeMap: Record<PassengerType['type'], string> = {
-    regular: 'Regular',
-    student: 'Student',
-    senior: 'Senior',
-    pwd: 'PWD',
-  };
-
-  const baseString = typeMap[type] || 'Unknown';
-
-  // Only pluralize 'student' and 'senior'
-  if (quantity > 1 && (type === 'student' || type === 'senior' || type === 'regular')) {
-    return `${baseString}s`; // e.g., Students, Seniors
-  }
-  return baseString; // e.g., Regular, PWD
-};
-
-// Helper to format timestamp into a readable date and time string
-const formatTimestamp = (timestamp: string) => {
-  const date = new Date(timestamp);
-  return date.toLocaleString('en-US', {
-    month: 'short', // e.g., Nov
-    day: 'numeric', // e.g., 21
-    year: 'numeric', // e.g., 2025
-    hour: 'numeric', // e.g., 5
-    minute: '2-digit', // e.g., 08
-    hour12: true, // e.g., AM/PM
-  });
-};
 
 export default function RouteMode({ state, handlers, onHistoryVisibilityChange, mode, onModeChange, isHistoryOpen }: RouteModeProps) {
   const [isHistoryVisible, setIsHistoryVisible] = useState(false);
@@ -124,7 +95,10 @@ export default function RouteMode({ state, handlers, onHistoryVisibilityChange, 
         {/* History Button - Top Right of Form */}
         <div className="absolute -top-12 left-5 z-40">
           <button
-            onClick={() => setIsHistoryVisible(true)}
+            onClick={() => {
+              logHistoryOpened('route');
+              setIsHistoryVisible(true);
+            }}
             className="flex gap-2 px-4 py-2 text-sm font-semibold text-gray-600 hover:text-black"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -155,68 +129,17 @@ export default function RouteMode({ state, handlers, onHistoryVisibilityChange, 
         </div>
       </div>
 
-      {/* History Sheet */}
-      {/* Backdrop for closing */}
-      {isHistoryVisible && (
-        <div
-          onClick={() => setIsHistoryVisible(false)}
-          className="fixed inset-0 bg-black/20 z-40"
-        />
-      )}
-      <div
-        className={`fixed bottom-[70px] left-0 right-0 bg-gray-50 rounded-t-3xl p-6 shadow-[0_-10px_30px_-15px_rgba(0,0,0,0.1)] border-t border-gray-200 z-50 transition-transform duration-300 ease-in-out ${
-          isHistoryVisible ? 'translate-y-0' : 'translate-y-full'
-        }`}
-      >
-        <div className="flex justify-between items-center pb-4 border-b border-gray-200">
-          <h2 className="text-xl font-bold">Calculation History</h2>
-          {(state.history || []).length > 0 && (
-            <button
-              onClick={() => {
-                handlers.clearHistory();
-                setIsHistoryVisible(false);
-              }}
-              className="py-1 px-3 text-xs font-semibold text-red-600 hover:bg-red-50 rounded-md transition-colors"
-            >
-              Clear All
-            </button>
-          )}
-        </div>
-        <div className="max-h-[340px] overflow-y-auto pt-4">
-          {(state.history || []).length === 0 ? (
-            <p className="text-gray-500 text-center py-8">No history yet.</p>
-          ) : (
-            <div className="space-y-4">
-              {state.history.map((item: HistoryEntry) => (
-                <div key={item.id} className="pb-4 border-b border-gray-200 last:border-b-0">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="font-semibold text-gray-800 text-base">{item.routeName}</p>
-                      <p className="text-xs text-gray-400 mt-1">{formatTimestamp(item.timestamp)}</p>
-                    </div>
-                    <div>
-                      <p className="text-lg font-bold text-gray-900 text-right">₱{item.fare.toFixed(2)}</p>
-                    </div>
-                  </div>
-                  <div className="mt-1.5 flex items-center text-xs text-gray-500">
-                    <span title="Passenger Type & Quantity" className="flex items-center">
-                      👤 {item.passengerType.quantity} {formatPassengerType(item.passengerType.type, item.passengerType.quantity)}
-                    </span>
-                    <span className="mx-2">&middot;</span>
-                    <span title="Gas Price" className="flex items-center">
-                      ⛽ ₱{item.gasPrice.toFixed(2)}/L
-                    </span>
-                    <span className="mx-2">&middot;</span>
-                    <span title="Baggage Included" className="flex items-center">
-                      🧳 {item.hasBaggage ? 'Yes' : 'No'}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+      <HistorySheet
+        isOpen={isHistoryVisible}
+        onClose={() => setIsHistoryVisible(false)}
+        onClearHistory={() => {
+          logHistoryCleared();
+          handlers.clearHistory();
+          setIsHistoryVisible(false);
+        }}
+        history={state.history || []}
+        title="Calculation History"
+      />
     </>
   );
 }

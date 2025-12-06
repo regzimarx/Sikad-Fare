@@ -50,3 +50,24 @@ export function logSupportButtonClick() {
     logEvent(analytics, 'support_button_click');
   }
 }
+
+/**
+ * Logs an event when the user opens the history panel.
+ * @param mode The mode ('route' or 'map') from which the history was opened.
+ */
+export function logHistoryOpened(mode: 'route' | 'map') {
+  if (analytics) {
+    logEvent(analytics, 'history_opened', {
+      history_mode: mode,
+    });
+  }
+}
+
+/**
+ * Logs an event when the user clears their calculation history.
+ */
+export function logHistoryCleared() {
+  if (analytics) {
+    logEvent(analytics, 'history_cleared');
+  }
+}
