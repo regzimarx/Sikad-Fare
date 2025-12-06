@@ -8,7 +8,7 @@ import { useFareCalculator } from '../hooks/useFareCalculator';
 import ModeToggle from '../components/ModeToggle';
 
 import { getFares, Fare } from '../services/fares';
-import { logFareCalculation, logQrCodeScan } from '../services/analytics';
+import { logFareCalculation, logQrCodeScan, logModeSwitched } from '../services/analytics';
 import { getAppConfig, AppConfig } from '../services/config';
 import { FaTimes } from 'react-icons/fa';
 
@@ -118,6 +118,12 @@ export default function Calculator() {
     logFareCalculation('map_origin', 'map_destination', 'map', result.passengerType);
   };
 
+  // --- Mode Change Handler with Analytics ---
+  const handleModeChange = (newMode: 'route' | 'map') => {
+    logModeSwitched(newMode);
+    setMode(newMode);
+  };
+
   return (
     <div className="h-screen bg-white flex flex-col relative">
           {/* App Update Notice Banner */}
@@ -133,7 +139,7 @@ export default function Calculator() {
           {/* Main Content Area */}
           <>
             <div className={`px-4 pt-10 pb-10 relative z-20 ${state.mode === 'map' ? 'bg-transparent' : ''}`}>
-              <ModeToggle mode={state.mode} onModeChange={setMode} />
+              <ModeToggle mode={state.mode} onModeChange={handleModeChange} />
             </div>
     
             <div className="overflow-hidden">
@@ -152,7 +158,7 @@ export default function Calculator() {
                   }}
                   onHistoryVisibilityChange={handleHistoryVisibilityChange}
                   mode={state.mode}
-                  onModeChange={setMode}
+                  onModeChange={handleModeChange}
                   isHistoryOpen={isHistoryOpen}
                 />
               ) : (
@@ -169,7 +175,7 @@ export default function Calculator() {
                   clearHistory={clearHistory}
                   onHistoryVisibilityChange={handleHistoryVisibilityChange}
                   mode={state.mode}
-                  onModeChange={setMode}
+                  onModeChange={handleModeChange}
                   isHistoryOpen={isHistoryOpen}
                 />
               )}

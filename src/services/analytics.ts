@@ -71,3 +71,24 @@ export function logHistoryCleared() {
     logEvent(analytics, 'history_cleared');
   }
 }
+
+/**
+ * Logs an event when the user switches between calculation modes.
+ * @param toMode The mode the user switched to ('route' or 'map').
+ */
+export function logModeSwitched(toMode: 'route' | 'map') {
+  if (analytics) {
+    logEvent(analytics, 'mode_switched', {
+      to_mode: toMode,
+    });
+  }
+}
+
+/**
+ * Logs an event when the user dismisses the 'Support Us' button.
+ */
+export function logSupportButtonDismissed() {
+  if (analytics) {
+    logEvent(analytics, 'support_button_dismissed');
+  }
+}
