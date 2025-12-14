@@ -11,11 +11,12 @@ import { CalculationMode } from '../../lib/types';
 import GasPriceSelector from '../form/GasPriceSelector';
 import PassengerSelector from '../form/PassengerSelector';
 import BaggageSelector from '../form/BaggageSelector';
-import Modal from '../Modal';
 import FareResult from '../FareResult';
 import HistorySheet from '../HistorySheet';
+import Modal from '../Modal';
 import { logHistoryOpened, logHistoryCleared } from '../../services/analytics';
-// Firebase Service Imports
+// Zone Utils
+import { isInsidePoblacion, GeoJsonData } from '../../lib/zoneUtils';
 
 // API Keys
 const MAPTILER_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY || process.env.NEXT_PUBLIC_MAPTILER_API_KEY;
@@ -23,7 +24,7 @@ const ORS_KEY = process.env.NEXT_PUBLIC_ORS_KEY || process.env.NEXT_PUBLIC_OPENR
 
 // Configuration Constants
 const MAP_CONFIG = {
-  CENTER: [7.1915, 124.5385] as [number, number],
+  CENTER: [7.19, 124.53] as [number, number],
   ZOOM: 14,
   MAX_ZOOM: 19,
 };
@@ -64,10 +65,10 @@ interface MapModeProps {
   clearHistory: () => void;
   onCalculate: (result: any) => void;
   onError: (error: string) => void;
-  onHistoryVisibilityChange: (isVisible: boolean) => void; // Callback to parent for history visibility
-  mode: CalculationMode; // Current calculation mode
-  onModeChange: (mode: CalculationMode) => void; // Handler to change mode
-  isHistoryOpen: boolean; // Prop from parent indicating if *any* history is open
+  onHistoryVisibilityChange: (isVisible: boolean) => void;
+  mode: CalculationMode;
+  onModeChange: (mode: CalculationMode) => void;
+  isHistoryOpen: boolean;
 }
 
 export default function MapMode({
@@ -81,10 +82,10 @@ export default function MapMode({
   history,
   clearHistory,
   onError,
-  onHistoryVisibilityChange, // Callback to parent for history visibility
-  mode, // Current calculation mode
-  onModeChange, // Handler to change mode
-  isHistoryOpen, // Prop from parent indicating if *any* history is open
+  onHistoryVisibilityChange,
+  mode,
+  onModeChange,
+  isHistoryOpen,
 }: MapModeProps) {
   // Refs
   const mapRef = useRef<L.Map | null>(null);
@@ -93,10 +94,10 @@ export default function MapMode({
   const routeLineRef = useRef<L.Polyline | null>(null);
   const originRef = useRef<L.Marker | null>(null);
   const destinationRef = useRef<L.Marker | null>(null);
+  const geoJsonLayerRef = useRef<L.GeoJSON | null>(null);
 
   // State
   const [isMapLoading, setIsMapLoading] = useState(true);
-  const [isOriginMode, setIsOriginMode] = useState(false);
   const [isPanelExpanded, setIsPanelExpanded] = useState(false);
   const [markers, setMarkers] = useState<{ origin: L.Marker | null; destination: L.Marker | null }>({
     origin: null,
@@ -112,35 +113,37 @@ export default function MapMode({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isHistoryVisible, setIsHistoryVisible] = useState(false);
   const [fareResult, setFareResult] = useState<FareCalculation | null>(null);
+  const [geoJsonData, setGeoJsonData] = useState<GeoJsonData | null>(null);
 
   // Effect to notify the parent component when history visibility changes
   useEffect(() => {
     onHistoryVisibilityChange(isHistoryVisible);
   }, [isHistoryVisible, onHistoryVisibilityChange]);
 
-  // Informative runtime check: warn if tile/routing keys are missing
+  // Informative runtime check
   useEffect(() => {
     if (!MAPTILER_KEY) {
-      console.info('MapMode: MapTiler key not set (checked NEXT_PUBLIC_MAPTILER_KEY and NEXT_PUBLIC_MAPTILER_API_KEY) — using OpenStreetMap tiles');
-      toast('Using OpenStreetMap tiles (no MapTiler key set)', { icon: '🗺️' });
+      console.info('MapMode: MapTiler key not set — using OpenStreetMap tiles');
+      toast('Using OpenStreetMap tiles', { icon: '🗺️' });
     }
     if (!ORS_KEY) {
-      console.info('MapMode: ORS key not set (checked NEXT_PUBLIC_ORS_KEY and NEXT_PUBLIC_OPENROUTESERVICE_API_KEY) — routing will be unavailable');
-      toast('Routing is disabled. Set an ORS API key to enable it.', { icon: '⚠️' });
+      console.info('MapMode: ORS key not set — routing will be unavailable');
+      toast('Routing disabled (No API Key)', { icon: '⚠️' });
     }
+  }, []);
 
-    // Dev-only: show masked presence of keys so developer can confirm client build picked them up
-    if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-      const mask = (s?: string) => {
-        if (!s) return '---';
-        if (s.length <= 8) return s.replace(/.(?=.{2})/g, '*');
-        return `${s.slice(0, 4)}...${s.slice(-4)}`;
-      };
-      const mtStatus = MAPTILER_KEY ? `loaded (${mask(MAPTILER_KEY)})` : 'MISSING';
-      const orsStatus = ORS_KEY ? `loaded (${mask(ORS_KEY)})` : 'MISSING';
-      console.info(`MapMode (dev): MAPTILER=${mtStatus}, ORS=${orsStatus}`);
-      toast(`Dev keys — MAPTILER: ${mtStatus} · ORS: ${orsStatus}`, { duration: 4000 });
-    }
+  // Load GeoJSON Data
+  useEffect(() => {
+    fetch('/Midsayap Map.json')
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to load GeoJSON');
+        return res.json();
+      })
+      .then((data) => {
+        console.log('Loaded GeoJSON data:', data);
+        setGeoJsonData(data);
+      })
+      .catch((err) => console.error('Error loading map zones:', err));
   }, []);
 
   // Reverse Geocoding
@@ -152,10 +155,8 @@ export default function MapMode({
     setLoading(true);
     setText('Fetching address...');
 
-    // Prefer OpenRouteService reverse geocoding (CORS-friendly) if API key present
     try {
       if (ORS_KEY) {
-        // ORS reverse geocode
         const url = `https://api.openrouteservice.org/geocode/reverse?point.lat=${latlng.lat}&point.lon=${latlng.lng}`;
         const res = await fetch(url, {
           headers: { Authorization: ORS_KEY },
@@ -169,13 +170,10 @@ export default function MapMode({
             setLoading(false);
             return;
           }
-        } else {
-          console.warn('ORS reverse geocode failed', res.status);
         }
       }
 
       if (MAPTILER_KEY) {
-        // MapTiler reverse geocode
         const url = `https://api.maptiler.com/geocoding/${latlng.lng},${latlng.lat}.json?key=${MAPTILER_KEY}`;
         const res = await fetch(url);
         if (res.ok) {
@@ -187,17 +185,13 @@ export default function MapMode({
             setLoading(false);
             return;
           }
-        } else {
-          console.warn('MapTiler reverse geocode failed', res.status);
         }
       }
 
-      // As a last resort, avoid calling Nominatim (CORS) — just show coords
       setText(fallbackText);
     } catch (error) {
       console.error('Reverse geocoding failed:', error);
       setText(fallbackText);
-      toast.error('Could not fetch address.');
     } finally {
       setLoading(false);
     }
@@ -209,12 +203,10 @@ export default function MapMode({
       const map = mapRef.current;
       if (!map) return null;
 
-
       const marker = L.marker(latlng, { icon: MARKER_ICONS[type], draggable }).addTo(map);
 
       if (type === 'destination') marker.bindPopup('🎯 Destination');
 
-      // Track marker in refs to guarantee single instance
       if (type === 'origin') originRef.current = marker;
       if (type === 'destination') destinationRef.current = marker;
       
@@ -226,7 +218,6 @@ export default function MapMode({
           toast.success('📍 Origin moved', { duration: 1500 });
 
           setMarkers((prev) => {
-            // update origin ref to the dragged marker
             originRef.current = e.target;
             const updated = { ...prev, origin: e.target };
             if (updated.destination) {
@@ -242,11 +233,9 @@ export default function MapMode({
     [reverseGeocode]
   );
 
-  // Fetch route from OpenRouteService (returns distance meters and coords [lon,lat])
-  // getRouteFromORS: request ORS directions and return distance/duration/coords
+  // Get Route from ORS
   const getRouteFromORS = useCallback(async (o: L.LatLng, d: L.LatLng) => {
     if (!ORS_KEY) {
-      console.error('MapMode: ORS key not set (checked NEXT_PUBLIC_ORS_KEY and NEXT_PUBLIC_OPENROUTESERVICE_API_KEY) — cannot perform routing');
       toast.error('Routing unavailable: ORS API key is not configured.');
       return null;
     }
@@ -280,19 +269,30 @@ export default function MapMode({
     }
   }, []);
 
-  // Fare calculation per requirements:
-  // Base fare: ₱15 for 0–2 km
-  // After 2 km: ₱2 per additional km
-  // distanceInKm: use ORS distance (decimal km)
-  const calculateFare = (distanceInKm: number) => {
-    const base = 15;
-    const extraPerKm = 2; // per km after 2km
-    const roundedDistance = Math.round(distanceInKm * 100) / 100; // round to 2 decimals for display
+  // Calculate Fare Logic
+  const calculateFare = useCallback((distanceInKm: number, origin: L.LatLng, dest: L.LatLng) => {
+    let base = 15;
+    let extraPerKm = 2;
+
+    if (geoJsonData) {
+      const isOriginPoblacion = isInsidePoblacion(origin.lat, origin.lng, geoJsonData);
+      const isDestPoblacion = isInsidePoblacion(dest.lat, dest.lng, geoJsonData);
+
+      if (isOriginPoblacion && isDestPoblacion) {
+        base = 15;
+        extraPerKm = 2;
+      } else {
+        base = 15;
+        extraPerKm = 2;
+      }
+    }
+
+    const roundedDistance = Math.round(distanceInKm * 100) / 100;
     const extraKm = Math.max(0, roundedDistance - 2);
     const extraCost = Math.round(extraKm * extraPerKm * 100) / 100;
     const fare = Math.round((base + extraCost) * 100) / 100;
     return { fare, roundedDistance };
-  };
+  }, [geoJsonData]);
 
   // Draw Route Line
   const drawRouteLine = useCallback((origin: L.LatLng, dest: L.LatLng) => {
@@ -313,7 +313,7 @@ export default function MapMode({
     routeLineRef.current = newLine;
   }, []);
 
-  // Draw a full route polyline from an array of latlngs
+  // Draw Route Polyline
   const drawRoutePolyline = useCallback((latlngs: L.LatLngExpression[]) => {
     if (!mapRef.current) return;
 
@@ -331,7 +331,7 @@ export default function MapMode({
     routeLineRef.current = newLine;
   }, []);
 
-  // Reset Map State
+  // Reset Map
   const resetMapState = useCallback(() => {
     if (originRef.current) {
       originRef.current.remove();
@@ -351,114 +351,90 @@ export default function MapMode({
     setIsModalOpen(false);
   }, []);
 
-  // Get User Location (Permissions-aware, logs coords for debugging)
+  // Get User Location
   const getUserLocation = useCallback(() => {
     if (!navigator.geolocation) {
       toast.error('Geolocation not supported');
       return;
     }
 
-    // Use Permissions API if available to detect denied state early
-    try {
-      if (navigator.permissions && navigator.permissions.query) {
-        // @ts-ignore
-        navigator.permissions.query({ name: 'geolocation' }).then((status: any) => {
-          if (status.state === 'denied') {
-            toast.error('Location permission denied. Please enable location for this site.');
-            return;
-          }
+    const handleSuccess = (pos: GeolocationPosition) => {
+      console.debug('Geolocation success:', pos.coords);
+      const { latitude, longitude } = pos.coords;
+      const latlng = L.latLng(latitude, longitude);
+      const map = mapRef.current;
+      if (map) map.setView(latlng, 15);
 
-          navigator.geolocation.getCurrentPosition(
-            (pos) => {
-              console.debug('Geolocation success coords:', pos.coords);
-              const { latitude, longitude } = pos.coords;
-              const latlng = L.latLng(latitude, longitude);
-              const map = mapRef.current;
-              if (map) map.setView(latlng, 15);
+      toast.dismiss();
+      toast.success('📍 Location found', { duration: 2000 });
 
-              toast.dismiss();
-              toast.success('📍 Location found', { duration: 2000 });
+      resetMapState();
+      setMarkers(() => {
+        const newOriginMarker = createMarker(latlng, 'origin', true);
+        return { origin: newOriginMarker, destination: null };
+      });
+      reverseGeocode(latlng, 'origin');
+    };
 
-              resetMapState();
-              setMarkers(() => {
-                const newOriginMarker = createMarker(latlng, 'origin', true);
-                return { origin: newOriginMarker, destination: null };
-              });
-
-              reverseGeocode(latlng, 'origin');
-            },
-            (err) => {
-              console.warn('Geolocation error', err);
-              toast.error('Unable to retrieve location');
-            },
-            { enableHighAccuracy: true, timeout: 10000 }
-          );
-        });
+    const handleError = (err: GeolocationPositionError) => {
+      console.warn('Geolocation error', err);
+      if (err.code === err.PERMISSION_DENIED) {
+        toast.error('Location permission denied.');
       } else {
-        // Fallback when Permissions API not available
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            console.debug('Geolocation success coords (no permissions API):', pos.coords);
-            const { latitude, longitude } = pos.coords;
-            const latlng = L.latLng(latitude, longitude);
-            const map = mapRef.current;
-            if (map) map.setView(latlng, 15);
-
-            toast.dismiss();
-            toast.success('📍 Location found', { duration: 2000 });
-
-            resetMapState();
-            setMarkers(() => {
-              const newOriginMarker = createMarker(latlng, 'origin', true);
-              return { origin: newOriginMarker, destination: null };
-            });
-
-            reverseGeocode(latlng, 'origin');
-          },
-          () => {
-            toast.error('Unable to retrieve location');
-          },
-          { enableHighAccuracy: true, timeout: 10000 }
-        );
+        toast.error('Unable to retrieve location');
       }
-    } catch (ex) {
-      console.error('getUserLocation check failed', ex);
-      toast.error('Unable to request location');
+    };
+
+    if (navigator.permissions && navigator.permissions.query) {
+      // @ts-ignore
+      navigator.permissions.query({ name: 'geolocation' }).then((status) => {
+        if (status.state === 'denied') {
+          toast.error('Location permission denied. Please enable it.');
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(handleSuccess, handleError, { enableHighAccuracy: true, timeout: 10000 });
+      });
+    } else {
+      navigator.geolocation.getCurrentPosition(handleSuccess, handleError, { enableHighAccuracy: true, timeout: 10000 });
     }
   }, [createMarker, reverseGeocode, resetMapState]);
 
-  // When the MapMode component mounts (e.g., user clicked Map Mode), attempt to get user location
+  // Render GeoJSON Layer
   useEffect(() => {
-    // Try immediate; if map not ready yet, wait until mapRef exists
-    if (mapRef.current) {
-      getUserLocation();
-      return;
-    }
+    if (!mapRef.current || !geoJsonData) return;
+    if (geoJsonLayerRef.current) geoJsonLayerRef.current.remove();
 
-    let mounted = true;
-    const id = setInterval(() => {
-      if (!mounted) return;
-      if (mapRef.current) {
-        getUserLocation();
-        clearInterval(id);
-      }
-    }, 400);
-    return () => {
-      mounted = false;
-      clearInterval(id);
-    };
-  }, [getUserLocation]);
+    const layer = L.geoJSON(geoJsonData as any, {
+      style: (feature) => {
+        const name = feature?.properties?.Barangay || feature?.properties?.name || '';
+        const isPoblacion = /poblacion/i.test(name);
+        return {
+          color: isPoblacion ? '#FF5722' : '#3388ff',
+          weight: 2,
+          opacity: 0.6,
+          fillOpacity: 0.1,
+        };
+      },
+    }).addTo(mapRef.current);
+
+    geoJsonLayerRef.current = layer;
+    const bounds = layer.getBounds();
+    if (bounds.isValid()) {
+      mapRef.current.fitBounds(bounds);
+      mapRef.current.setMaxBounds(bounds);
+      mapRef.current.setMinZoom(mapRef.current.getBoundsZoom(bounds));
+    }
+  }, [geoJsonData]);
 
   // Initialize Map
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
-    const map = L.map(mapContainerRef.current, { zoomControl: false }).setView(
-      MAP_CONFIG.CENTER,
-      MAP_CONFIG.ZOOM
-    );
+    const map = L.map(mapContainerRef.current, { 
+      zoomControl: false,
+      maxBoundsViscosity: 1.0 
+    }).setView(MAP_CONFIG.CENTER, MAP_CONFIG.ZOOM);
 
-    // Use MapTiler tiles (streets-v2) when API key is provided, otherwise fallback to OpenStreetMap
     const streetsUrl = MAPTILER_KEY
       ? `https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=${MAPTILER_KEY}`
       : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
@@ -490,7 +466,7 @@ export default function MapMode({
     };
   }, [getUserLocation]);
 
-  // Toggle satellite/street tiles
+  // Toggle Satellite
   useEffect(() => {
     if (!mapRef.current || !tileLayerRef.current) return;
     const streetsUrl = MAPTILER_KEY
@@ -501,12 +477,9 @@ export default function MapMode({
       : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
 
     const newUrl = isSatellite ? satelliteUrl : streetsUrl;
-    // Remove old and add new tileLayer
     try {
       mapRef.current.removeLayer(tileLayerRef.current!);
-    } catch (e) {
-      // ignore
-    }
+    } catch (e) {}
     const newTl = L.tileLayer(newUrl, {
       maxZoom: MAP_CONFIG.MAX_ZOOM,
       attribution: MAPTILER_KEY ? '© MapTiler © OpenStreetMap contributors' : '© OpenStreetMap',
@@ -520,17 +493,11 @@ export default function MapMode({
     if (!map) return;
 
     const onClick = (e: L.LeafletMouseEvent) => {
-      // Strict two-marker system:
-      // 1st click -> set origin (green)
-      // 2nd click -> set destination (red)
-      // 3rd click (after both exist) -> RESET and treat as new origin
       setRouteCache(null);
 
       setMarkers((prev) => {
-        // If no origin, set origin (remove previous origin if any)
         if (!prev.origin && !prev.destination) {
           if (originRef.current) originRef.current.remove();
-
           const m = createMarker(e.latlng, 'origin', true);
           originRef.current = m;
           reverseGeocode(e.latlng, 'origin');
@@ -539,36 +506,28 @@ export default function MapMode({
           return { origin: m, destination: null };
         }
 
-        // If origin exists but no destination, set destination
         if (prev.origin && !prev.destination) {
           if (destinationRef.current) destinationRef.current.remove();
-
           const m = createMarker(e.latlng, 'destination');
           destinationRef.current = m;
           reverseGeocode(e.latlng, 'destination');
           toast.dismiss();
           toast.success('🎯 Destination set');
-          // draw a temporary straight line until ORS responds
           if (prev.origin && m) drawRouteLine(prev.origin.getLatLng(), m.getLatLng());
           return { ...prev, destination: m };
         }
 
-        // Both exist -> reset markers and set new origin at clicked location
         if (prev.origin && prev.destination) {
           resetMapState();
-
           setFromText('Getting location...');
           setToText('Tap on map');
-
           const m = createMarker(e.latlng, 'origin', true);
           originRef.current = m;
-
           reverseGeocode(e.latlng, 'origin');
           toast.dismiss();
           toast.success('📍 Origin set');
           return { origin: m, destination: null };
         }
-
         return prev;
       });
     };
@@ -579,21 +538,19 @@ export default function MapMode({
     };
   }, [createMarker, drawRouteLine, reverseGeocode, resetMapState]);
 
-  // When both markers exist, attempt to fetch the ORS route and draw it (caches result)
+  // Fetch Route Logic (Effect)
   useEffect(() => {
     const tryRoute = async () => {
       if (!markers.origin || !markers.destination) return;
       const o = markers.origin.getLatLng();
       const d = markers.destination.getLatLng();
 
-      // use ORS routing util — must use ORS; no straight-line fallback
       const route = await getRouteFromORS(o, d);
       if (route && route.distanceMeters != null && route.coords && route.coords.length) {
         setRouteCache(route as any);
         const routeLatLngs = route.coords.map((c: number[]) => L.latLng(c[1], c[0]));
         drawRoutePolyline(routeLatLngs);
       } else {
-        // Routing failed — inform the user and clear any drawn temporary line
         toast.error('Routing failed: OpenRouteService did not return a route.');
         if (routeLineRef.current) {
           routeLineRef.current.remove();
@@ -601,12 +558,10 @@ export default function MapMode({
         }
       }
     };
-
     tryRoute();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [markers.origin, markers.destination]);
+  }, [markers.origin, markers.destination, getRouteFromORS, drawRoutePolyline]);
 
-  // Calculate Fare
+  // Handle Calculate Button
   const handleCalculate = useCallback(() => {
     if (!markers.origin || !markers.destination) {
       toast.error('Please set both origin and destination');
@@ -616,7 +571,6 @@ export default function MapMode({
     const dest = markers.destination.getLatLng();
 
     (async () => {
-      // Must have ORS route available — do not fall back to straight-line
       let route = routeCache as any;
       if (!route || !route.distanceMeters) {
         route = await getRouteFromORS(origin, dest);
@@ -629,8 +583,7 @@ export default function MapMode({
       const distKm = (route.distanceMeters as number) / 1000;
       const routeLatLngs = route.coords.map((c: number[]) => [c[1], c[0]]);
 
-      // Compute fare using local rule
-      const { fare, roundedDistance } = calculateFare(distKm);
+      const { fare, roundedDistance } = calculateFare(distKm, origin, dest);
 
       const finalResult: FareCalculation = {
         fare,
@@ -656,7 +609,7 @@ export default function MapMode({
       toast.dismiss();
 
     })();
-  }, [markers, gasPrice, passengerType, hasBaggage, onCalculate, fromText, toText]);
+  }, [markers, gasPrice, passengerType, hasBaggage, onCalculate, calculateFare, routeCache, getRouteFromORS]);
 
   // Panel Drag Gesture
   const bind = useDrag(
@@ -702,72 +655,45 @@ export default function MapMode({
 
       {/* Floating Action Buttons */}
       <div className="absolute bottom-[250px] right-4 z-20 flex flex-col gap-2">
-        <button
-          type="button"
-          onClick={() => {
-            setIsOriginMode(!isOriginMode);
-            toast.dismiss();
-            if (!isOriginMode) {
-              toast('Tap on the map to set a new Origin', { icon: '👆' });
-            }
-          }}
-          className={`w-12 h-12 rounded-full shadow-lg text-2xl transition ${
-            isOriginMode ? 'bg-yellow-400 text-black' : 'bg-white hover:bg-gray-100'
-          }`}
-          title="Set Custom Origin"
-        >
-          📍
-        </button>
-        
-        {/* History Button */}
-        <button
-          type="button"
-          onClick={() => {
-            logHistoryOpened('map');
-            setIsHistoryVisible(true);
-          }}
-          className="w-12 h-12 rounded-full shadow-lg bg-white hover:bg-gray-100 flex items-center justify-center"
-          title="View History"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-6 w-6"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
+        <div className="bg-white rounded-full shadow-lg">
+          <button
+            type="button"
+            onClick={() => {
+              logHistoryOpened('map');
+              setIsHistoryVisible(true);
+            }}
+            className="w-12 h-12 hover:bg-gray-100 flex items-center justify-center rounded-t-full"
+            title="View History"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
-        </button>
-        {/* Satellite Toggle */}
-        <button
-          type="button"
-          onClick={() => {
-            setIsSatellite((s) => !s);
-            toast.dismiss();
-            toast(`Tile: ${!isSatellite ? 'Satellite' : 'Streets'}`);
-          }}
-          className="w-12 h-12 rounded-full shadow-lg bg-white hover:bg-gray-100 flex items-center justify-center"
-          title="Toggle Satellite"
-        >
-          🛰️
-        </button>
-        {/* Locate Button */}
-        <button
-          type="button"
-          onClick={() => {
-            getUserLocation();
-          }}
-          className="w-12 h-12 rounded-full shadow-lg bg-white hover:bg-gray-100 flex items-center justify-center"
-          title="Locate Me"
-        >
-          📡
-        </button>
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </button>
+          <hr className="border-t border-gray-200" />
+          <button
+            type="button"
+            onClick={() => {
+              setIsSatellite((s) => !s);
+              toast.dismiss();
+              toast(`Tile: ${!isSatellite ? 'Satellite' : 'Streets'}`);
+            }}
+            className="w-12 h-12 hover:bg-gray-100 flex items-center justify-center"
+            title="Toggle Satellite"
+          >
+            🛰️
+          </button>
+          <hr className="border-t border-gray-200" />
+          <button
+            type="button"
+            onClick={() => {
+              getUserLocation();
+            }}
+            className="w-12 h-12 hover:bg-gray-100 flex items-center justify-center rounded-b-full"
+            title="Locate Me"
+          >
+            📡
+          </button>
+        </div>
       </div>
 
       {/* Bottom Panel */}
