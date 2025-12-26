@@ -19,7 +19,7 @@ const initialCalculatorState: CalculatorState = {
   mode: 'route',
   origin: '',
   destination: '',
-  gasPrice: 60, // Set to today's current price (P51-P60 range)
+  gasPrice: 60, // Default to P51-P60 range
   passengerType: { type: 'regular', quantity: 1 },
   hasBaggage: false,
   result: null,
@@ -54,15 +54,13 @@ export function useFareCalculator() {
         timestamp: new Date().toISOString(),
         ...calculationResult,
       };
-      // Keep only the last 50 entries
       return { ...prev, history: [newEntry, ...prev.history].slice(0, 50) };
     });
   }, []);
 
-  // --- State Handlers (The Baton Pass) ---
+  // --- State Handlers ---
   const setOrigin = useCallback((origin: string) => {
     setState(prev => {
-      // Logic: If origin is the same as current destination, clear destination
       const newDestination = origin === prev.destination ? '' : prev.destination;
       return { ...prev, origin, destination: newDestination, result: null };
     });
@@ -96,7 +94,7 @@ export function useFareCalculator() {
   const calculateFare = useCallback(() => {
     const { origin, destination, gasPrice, passengerType, hasBaggage } = state;
 
-    // 1. Basic Validation
+    // 1. Validation
     if (!origin || !destination) {
       toast.error('Please select both origin and destination');
       return null;
@@ -106,13 +104,25 @@ export function useFareCalculator() {
       return null;
     }
 
-    const route = findRoute(origin, destination);
-    const isDiscounted = ['student', 'senior', 'pwd'].includes(passengerType.type);
+    // 2. Logic Flags
+    const isOriginProper = midsayapProper.includes(origin);
+    const isDestProper = midsayapProper.includes(destination);
+
+    // 3. Smart Route Search (Normalizing "Poblacion" to "Town Proper")
+    let route = findRoute(origin, destination);
+
+    if (!route) {
+      if (isOriginProper && !isDestProper) {
+        route = findRoute("Town Proper", destination);
+      } else if (!isOriginProper && isDestProper) {
+        route = findRoute(origin, "Town Proper");
+      }
+    }
 
     let result: FareCalculation | null = null;
 
-    // 2. Case: Within Town Proper
-    if (!route && midsayapProper.includes(origin) && midsayapProper.includes(destination)) {
+    // Case A: Within Town Proper (Pob to Pob)
+    if (isOriginProper && isDestProper) {
       const baseRegular = 15.00;
       const baseDiscounted = 12.00;
       
@@ -130,7 +140,7 @@ export function useFareCalculator() {
         studentFare: baseDiscounted,
       };
     } 
-    // 3. Case: Found Route in Ordinance
+    // Case B: Barangay Route Found
     else if (route) {
       const baseFare = getFareByGasPrice(gasPrice, route.baseRegular, route.baseStudent, passengerType);
       const finalFare = (baseFare * passengerType.quantity) + (hasBaggage ? OFFICIAL_BAGGAGE_FEE : 0);
@@ -146,9 +156,9 @@ export function useFareCalculator() {
         studentFare: route.baseStudent,
       };
     } 
-    // 4. Case: Not Found
+    // Case C: No data
     else {
-      toast.error('Route not found. Try Map Mode for custom distances.');
+      toast.error('Route not found in Tarifa. Check if Barangay is spelled correctly.');
       return null;
     }
 
@@ -161,10 +171,7 @@ export function useFareCalculator() {
   }, [state, addResultToHistory]);
 
   const reset = useCallback(() => {
-    setState(prev => ({
-      ...initialCalculatorState,
-      history: prev.history // Keep history during reset
-    }));
+    setState(prev => ({ ...initialCalculatorState, history: prev.history }));
   }, []);
 
   const clearHistory = useCallback(() => {
@@ -172,7 +179,6 @@ export function useFareCalculator() {
     toast.success('History cleared!');
   }, []);
 
-  // Handlers returned here must match the keys used in RouteMode.tsx
   return {
     state,
     setMode,

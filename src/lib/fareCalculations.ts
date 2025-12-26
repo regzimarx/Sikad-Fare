@@ -1,8 +1,10 @@
 import { PassengerType } from './types';
 
 /**
- * According to Ordinance 536, fares shift by P1.00 for every P10.00 gas change.
- * Our base data in routeData.ts uses the P71-P80 bracket (Anchor: 80).
+ * Midsayap Ordinance 536 Advanced Variable Step Logic:
+ * Patterns discovered from Official Matrix:
+ * - Regular: P1.00 shift (Gas < 71), P2.00 shift (Gas >= 71)
+ * - Discounted: P0.80 shift (Gas < 71), P1.60 shift (Gas >= 71)
  */
 export function getFareByGasPrice(
   gasPrice: number,
@@ -10,24 +12,52 @@ export function getFareByGasPrice(
   baseStudent: number,
   passengerType: PassengerType
 ): number {
-  const anchorPrice = 80; // The "Standard" bracket in your data
-  
-  // Calculate how many steps of P10.00 we are away from the anchor
-  // If gas is 55 (Today), steps = (80 - 60) / 10 = 2 steps DOWN.
-  const steps = Math.floor((anchorPrice - gasPrice) / 10);
-  
+  const anchorPrice = 80; // Anchor column (P71-P80)
   const isDiscounted = ['student', 'senior', 'pwd'].includes(passengerType.type);
-  const baseFare = isDiscounted ? baseStudent : baseRegular;
+  
+  let adjustedFare = isDiscounted ? baseStudent : baseRegular;
+  let currentBracket = anchorPrice;
 
-  // Apply the flat P1.00 adjustment per step
-  let adjustedFare = baseFare - (steps * 1.00);
+  // Moving DOWN from Anchor (e.g., to Today's P51-P60)
+  while (currentBracket > gasPrice) {
+    let stepValue: number;
+    
+    if (currentBracket > 71) {
+      // High Gas Threshold: Regular P2.00 / Discounted P1.60
+      stepValue = isDiscounted ? 1.60 : 2.00;
+    } else {
+      // Low Gas Threshold: Regular P1.00 / Discounted P0.80
+      stepValue = isDiscounted ? 0.80 : 1.00;
+    }
+    
+    adjustedFare -= stepValue;
+    currentBracket -= 10;
+  }
 
-  // Apply quantity and round to nearest whole peso for local compliance
-  return Math.round(adjustedFare) * passengerType.quantity;
+  // Moving UP from Anchor
+  while (currentBracket < gasPrice - 10) {
+    currentBracket += 10;
+    let stepValue: number;
+    
+    if (currentBracket >= 71) {
+      stepValue = isDiscounted ? 1.60 : 2.00;
+    } else {
+      stepValue = isDiscounted ? 0.80 : 1.00;
+    }
+    
+    adjustedFare += stepValue;
+  }
+
+  // Rounding Logic:
+  // For Regulars, we round to whole Pesos.
+  // For Discounted, we round to 2 decimal places to match the Pxx.x0 in the table.
+  return isDiscounted 
+    ? Math.round(adjustedFare * 10) / 10 
+    : Math.round(adjustedFare);
 }
 
 /**
- * Map-based fare calculation for routes not defined in the ordinance.
+ * Map-based fare calculation
  */
 export function calculateMapFare(
   distKm: number,
@@ -40,34 +70,29 @@ export function calculateMapFare(
   studentFare: number;
   estimatedRoadDist: number;
 } {
-  // 1. Account for road curves (8% increase over straight-line distance)
   const estimatedRoadDistKm = distKm * 1.08;
   
-  // 2. Base Rate: Using a standard P15.00 flag-down for the first 1.5km
-  // and P2.00 per succeeding km (common provincial standard)
+  // Base Rate (Anchor P71-P80)
   let baseRegular = 15.00;
   if (estimatedRoadDistKm > 1.5) {
     baseRegular += Math.ceil(estimatedRoadDistKm - 1.5) * 2.00;
   }
   
-  const baseStudent = Math.floor(baseRegular * 0.8); // Strict 20% discount
+  const baseStudent = baseRegular * 0.8; 
 
-  // 3. Adjust for current gas price using the Step Logic
-  const regularFare = getFareByGasPrice(gasPrice, baseRegular, baseStudent, { type: 'regular', quantity: 1 });
-  const studentFare = getFareByGasPrice(gasPrice, baseRegular, baseStudent, { type: 'student', quantity: 1 });
+  const unitRegular = getFareByGasPrice(gasPrice, baseRegular, baseStudent, { type: 'regular', quantity: 1 });
+  const unitStudent = getFareByGasPrice(gasPrice, baseRegular, baseStudent, { type: 'student', quantity: 1 });
 
-  let finalFare = (passengerType.type === 'regular' ? regularFare : studentFare) * passengerType.quantity;
+  let finalFare = (passengerType.type === 'regular' ? unitRegular : unitStudent) * passengerType.quantity;
 
-  // 4. Section 3.e: Add baggage fee
   if (hasBaggage) {
-    finalFare += 10;
+    finalFare += 10; // Section 3.e flat fee
   }
   
   return {
     fare: finalFare,
-    regularFare,
-    studentFare,
+    regularFare: unitRegular,
+    studentFare: unitStudent,
     estimatedRoadDist: estimatedRoadDistKm
   };
 }
-

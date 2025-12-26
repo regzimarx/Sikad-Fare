@@ -6,7 +6,7 @@ export const gasPriceOptions: GasPriceOption[] = [
   { value: 50, label: "₱41.00 – ₱50.00" },
   { value: 60, label: "₱51.00 – ₱60.00" }, // Today's Price Range
   { value: 70, label: "₱61.00 – ₱70.00" },
-  { value: 80, label: "₱71.00 – ₱80.00" }, // The "Anchor" price for base calculations
+  { value: 80, label: "₱71.00 – ₱80.00" }, // The "Anchor" Price 
   { value: 90, label: "₱81.00 – ₱90.00" },
   { value: 100, label: "₱91.00 – ₱100.00" },
   { value: 110, label: "₱101.00 – ₱110.00" }
@@ -51,10 +51,10 @@ export const midsayapProper = [
 
 export const outsideMidsayap = [
   "Agriculture", "Aleosan", "Anonang", "Arizona", 
-  "Bagumba", "Baliki", "Barongis", "Damatug", 
+  "Baliki", "Barongis",
   "Kimagango", "Kiwanan", "Libungan Proper", 
   "Palongoguen", "Rangaban", "Sadaan", 
-  "Salunayan", "San Isidro", "Villarica"
+  "Salunayan", "Villarica"
 ].sort();
 
 export function normalizeName(name: string): string {
