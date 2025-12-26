@@ -1,4 +1,4 @@
-import type { Feature, GeoJsonObject, MultiPolygon, Polygon } from 'geojson';
+import type { Feature, FeatureCollection, GeoJsonObject, MultiPolygon, Polygon } from 'geojson';
 
 // A point is represented as [lng, lat] in GeoJSON
 type Point = [number, number];
@@ -122,7 +122,7 @@ export const isInsidePoblacion = (
     return false;
   }
 
-  for (const feature of geoJson.features) {
+  for (const feature of (geoJson as FeatureCollection).features) {
     if (feature.properties?.name?.includes('Poblacion')) {
       if (isInsideBarangay(lat, lng, feature)) {
         return true;
@@ -149,7 +149,7 @@ export const getBarangay = (
     return null;
   }
 
-  for (const feature of geoJson.features) {
+  for (const feature of (geoJson as FeatureCollection).features) {
     if (feature.properties?.name && isInsideBarangay(lat, lng, feature)) {
       return feature.properties.name;
     }
