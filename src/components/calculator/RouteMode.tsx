@@ -5,8 +5,8 @@ import LocationSelector from '../form/LocationSelector';
 import GasPriceSelector from '../form/GasPriceSelector';
 import PassengerSelector from '../form/PassengerSelector';
 import BaggageSelector from '../form/BaggageSelector';
-import ModeToggle from '../ModeToggle'; // Import ModeToggle
-import { CalculationMode } from '../../lib/types'; // Import CalculationMode
+import ModeToggle from '../ModeToggle'; 
+import { CalculationMode } from '../../lib/types'; 
 import { midsayapProper, outsideMidsayap } from '../../lib/routeData';
 import { logHistoryOpened, logHistoryCleared } from '../../services/analytics';
 import { HistoryEntry, CalculatorState, PassengerType } from '../../lib/types';

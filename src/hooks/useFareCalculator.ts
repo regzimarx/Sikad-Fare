@@ -1,205 +1,169 @@
 "use client";
 
 import { useState, useCallback, useEffect } from 'react';
-import { CalculatorState, CalculationMode, PassengerType, FareCalculation, HistoryEntry, DiscountedPassenger } from '../lib/types';
+import { 
+  CalculatorState, 
+  CalculationMode, 
+  PassengerType, 
+  FareCalculation, 
+  HistoryEntry 
+} from '../lib/types';
 import { findRoute, normalizeName, midsayapProper } from '../lib/routeData';
 import { getFareByGasPrice } from '../lib/fareCalculations';
 import toast from 'react-hot-toast';
+
+// Section 3.e: Baggage fee is fixed at P10.00 per ordinance
+const OFFICIAL_BAGGAGE_FEE = 10.00;
 
 const initialCalculatorState: CalculatorState = {
   mode: 'route',
   origin: '',
   destination: '',
-  gasPrice: 60,
-  passengerType: { type: 'student', quantity: 1 },
+  gasPrice: 60, // Set to today's current price (P51-P60 range)
+  passengerType: { type: 'regular', quantity: 1 },
   hasBaggage: false,
   result: null,
   error: null,
-  history: [], // Start with an empty history for server/client consistency
+  history: [],
 };
 
 export function useFareCalculator() {
   const [state, setState] = useState<CalculatorState>(initialCalculatorState);
 
-  useEffect(() => {
-    try {
-      window.localStorage.setItem('fareHistory', JSON.stringify(state.history));
-    } catch (error) {
-      console.error('Error saving history to localStorage', error);
-    }
-  }, [state.history]);
-
-  // Effect to load history from localStorage only on the client-side after mounting
+  // --- Persistence Logic ---
   useEffect(() => {
     try {
       const item = window.localStorage.getItem('fareHistory');
       if (item) {
-        const storedHistory = JSON.parse(item);
-        setState(prevState => ({ ...prevState, history: storedHistory }));
+        setState(prev => ({ ...prev, history: JSON.parse(item) }));
       }
-    } catch (error) {
-      console.error('Error reading history from localStorage', error);
+    } catch (e) {
+      console.error('History load failed', e);
     }
-  }, []); // Empty dependency array ensures this runs only once on mount
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem('fareHistory', JSON.stringify(state.history));
+  }, [state.history]);
+
+  // --- History Helper ---
+  const addResultToHistory = useCallback((calculationResult: FareCalculation) => {
+    setState(prev => {
+      const newEntry: HistoryEntry = {
+        id: new Date().getTime().toString(),
+        timestamp: new Date().toISOString(),
+        ...calculationResult,
+      };
+      // Keep only the last 50 entries
+      return { ...prev, history: [newEntry, ...prev.history].slice(0, 50) };
+    });
+  }, []);
+
+  // --- State Handlers (The Baton Pass) ---
+  const setOrigin = useCallback((origin: string) => {
+    setState(prev => {
+      // Logic: If origin is the same as current destination, clear destination
+      const newDestination = origin === prev.destination ? '' : prev.destination;
+      return { ...prev, origin, destination: newDestination, result: null };
+    });
+  }, []);
+
+  const setDestination = useCallback((destination: string) => {
+    setState(prev => ({ ...prev, destination, result: null }));
+  }, []);
+
+  const setGasPrice = useCallback((gasPrice: number) => {
+    setState(prev => ({ ...prev, gasPrice, result: null }));
+  }, []);
+
+  const setPassengerType = useCallback((passengerType: Partial<PassengerType>) => {
+    setState(prev => ({ 
+      ...prev, 
+      passengerType: { ...prev.passengerType, ...passengerType },
+      result: null 
+    }));
+  }, []);
+
+  const setHasBaggage = useCallback((hasBaggage: boolean) => {
+    setState(prev => ({ ...prev, hasBaggage, result: null }));
+  }, []);
 
   const setMode = useCallback((mode: CalculationMode) => {
     setState(prev => ({ ...prev, mode, result: null }));
   }, []);
 
-  const setOrigin = useCallback((origin: string) => {
-    setState(prev => {
-      // If the new origin is the same as the current destination, clear the destination.
-      // Otherwise, keep the destination.
-      const newDestination = origin === prev.destination ? '' : prev.destination;
-      return { ...prev, origin, destination: newDestination };
-    });
-  }, []);
-
-  const setDestination = useCallback((destination: string) => {
-    setState(prev => ({ ...prev, destination }));
-  }, []);
-
-  const setGasPrice = useCallback((gasPrice: number) => {
-    setState(prev => ({ ...prev, gasPrice }));
-  }, []);
-
-  const setPassengerType = useCallback((passengerType: Partial<PassengerType>) => {
-    setState(prev => ({ ...prev, passengerType: { ...prev.passengerType, ...passengerType } }));
-  }, []);
-
-  const setHasBaggage = useCallback((hasBaggage: boolean) => {
-    setState(prev => ({ ...prev, hasBaggage }));
-  }, []);
-
-  const addResultToHistory = useCallback(
-    (calculationResult: Omit<FareCalculation, 'id'>) => {
-      setState(prev => {
-        const latestEntry = prev.history[0];
-
-        // Check if the new calculation is a duplicate of the most recent one
-        if (latestEntry) {
-          const isDuplicate =
-            latestEntry.routeName === calculationResult.routeName &&
-            latestEntry.fare === calculationResult.fare &&
-            latestEntry.passengerType.type === calculationResult.passengerType.type &&
-            latestEntry.passengerType.quantity === calculationResult.passengerType.quantity &&
-            latestEntry.hasBaggage === calculationResult.hasBaggage;
-
-          if (isDuplicate) {
-            return prev; // Don't add to history if it's a consecutive duplicate
-          }
-        }
-
-        const newEntry: HistoryEntry = {
-          id: new Date().toISOString(), // Simple unique ID
-          timestamp: new Date().toISOString(),
-          ...calculationResult,
-        };
-        // Add to the beginning of the array and limit history size
-        return { ...prev, history: [newEntry, ...prev.history].slice(0, 50) };
-      });
-    },
-    []
-  );
-
+  // --- Core Calculation Logic ---
   const calculateFare = useCallback(() => {
     const { origin, destination, gasPrice, passengerType, hasBaggage } = state;
 
-    // Validation
+    // 1. Basic Validation
     if (!origin || !destination) {
       toast.error('Please select both origin and destination');
-      setState(prev => ({ ...prev, result: null }));
       return null;
     }
-
     if (origin === destination) {
       toast.error('Origin and destination cannot be the same');
-      setState(prev => ({ ...prev, result: null }));
       return null;
     }
 
-    // Find route
     const route = findRoute(origin, destination);
-
-    // Check if within town proper
-    const isOriginProper = midsayapProper.includes(origin);
-    const isDestProper = midsayapProper.includes(destination);
-
-    // Check if the passenger type is eligible for a discount.
     const isDiscounted = ['student', 'senior', 'pwd'].includes(passengerType.type);
 
-    if (!route && isOriginProper && isDestProper) {
-      // Within town proper fare
-      const baseFare = isDiscounted ? 12.00 : 15.00;
-      const finalFare = hasBaggage ? baseFare + 10 : baseFare;
+    let result: FareCalculation | null = null;
 
-      const result: FareCalculation = {
+    // 2. Case: Within Town Proper
+    if (!route && midsayapProper.includes(origin) && midsayapProper.includes(destination)) {
+      const baseRegular = 15.00;
+      const baseDiscounted = 12.00;
+      
+      const scaledFare = getFareByGasPrice(gasPrice, baseRegular, baseDiscounted, passengerType);
+      const finalFare = (scaledFare * passengerType.quantity) + (hasBaggage ? OFFICIAL_BAGGAGE_FEE : 0);
+
+      result = {
         fare: finalFare,
         routeName: `${origin} → ${destination}`,
         distance: 'Within Town Proper',
         passengerType,
         gasPrice,
         hasBaggage,
-        regularFare: 15.00,
-        studentFare: 12.00,
+        regularFare: baseRegular,
+        studentFare: baseDiscounted,
       };
+    } 
+    // 3. Case: Found Route in Ordinance
+    else if (route) {
+      const baseFare = getFareByGasPrice(gasPrice, route.baseRegular, route.baseStudent, passengerType);
+      const finalFare = (baseFare * passengerType.quantity) + (hasBaggage ? OFFICIAL_BAGGAGE_FEE : 0);
 
-      setState(prev => ({ ...prev, result }));
-      addResultToHistory(result);
-      return result;
-    }
-
-    if (!route) {
-      toast.error('Route not found. Please use Map mode for custom routes.');
-      setState(prev => ({ ...prev, result: null }));
+      result = {
+        fare: finalFare,
+        routeName: `${normalizeName(origin)} → ${normalizeName(destination)}`,
+        distance: route.distance,
+        passengerType,
+        gasPrice,
+        hasBaggage,
+        regularFare: route.baseRegular,
+        studentFare: route.baseStudent,
+      };
+    } 
+    // 4. Case: Not Found
+    else {
+      toast.error('Route not found. Try Map Mode for custom distances.');
       return null;
     }
 
-    // Calculate fare
-    const baseFare = isDiscounted ? route.baseStudent : route.baseRegular;
-    let fare = getFareByGasPrice(gasPrice, baseFare, baseFare, passengerType); // Pass baseFare for both regular and student
-
-    if (hasBaggage) {
-      fare += 10;
+    if (result) {
+      setState(prev => ({ ...prev, result }));
+      addResultToHistory(result);
     }
-
-    const result: FareCalculation = {
-      fare,
-      routeName: `${normalizeName(origin)} → ${normalizeName(destination)}`,
-      distance: route.distance,
-      passengerType,
-      gasPrice,
-      hasBaggage,
-      regularFare: route.baseRegular,
-      studentFare: route.baseStudent,
-    };
-
-    setState(prev => ({ ...prev, result }));
-    addResultToHistory(result);
+    
     return result;
   }, [state, addResultToHistory]);
 
-  const setMapResult = useCallback((result: FareCalculation) => {
-    setState(prev => ({ ...prev, result })); // Set the current result
-    // Add the map calculation to history
-    // We need to omit 'id' as it's generated by addResultToHistory
-    addResultToHistory(result); 
-  }, []);
-
-  const setError = useCallback((error: string) => {
-    toast.error(error);
-  }, []);
-
   const reset = useCallback(() => {
     setState(prev => ({
-      ...prev,
-      origin: '',
-      destination: '',
-      gasPrice: 60,
-      passengerType: { type: 'student', quantity: 1 },
-      hasBaggage: false,
-      result: null,
-      error: null,
+      ...initialCalculatorState,
+      history: prev.history // Keep history during reset
     }));
   }, []);
 
@@ -208,6 +172,7 @@ export function useFareCalculator() {
     toast.success('History cleared!');
   }, []);
 
+  // Handlers returned here must match the keys used in RouteMode.tsx
   return {
     state,
     setMode,
@@ -217,9 +182,7 @@ export function useFareCalculator() {
     setPassengerType,
     setHasBaggage,
     calculateFare,
-    setMapResult,
     reset,
-    setError,
     clearHistory,
   };
 }
