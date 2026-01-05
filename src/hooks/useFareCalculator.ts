@@ -19,7 +19,7 @@ const initialCalculatorState: CalculatorState = {
   mode: 'route',
   origin: '',
   destination: '',
-  gasPrice: 60, // Default to P51-P60 range
+  gasPrice: 60, // Default to P51-P60 range based on current trends
   passengerType: { type: 'regular', quantity: 1 },
   hasBaggage: false,
   result: null,
@@ -123,14 +123,14 @@ export function useFareCalculator() {
 
     // Case A: Within Town Proper (Pob to Pob)
     if (isOriginProper && isDestProper) {
-      const baseRegular = 15.00;
-      const baseDiscounted = 12.00;
+      const baseRegular = 15.00; // Flat rate for regular
+      const baseDiscounted = 12.00; // Flat rate for student/SR/PWD
       
-      const scaledFare = getFareByGasPrice(gasPrice, baseRegular, baseDiscounted, passengerType);
-      const finalFare = (scaledFare * passengerType.quantity) + (hasBaggage ? OFFICIAL_BAGGAGE_FEE : 0);
+      const scaledUnitFare = getFareByGasPrice(gasPrice, baseRegular, baseDiscounted, { ...passengerType, quantity: 1 });
+      const totalFare = (scaledUnitFare * passengerType.quantity) + (hasBaggage ? OFFICIAL_BAGGAGE_FEE : 0);
 
       result = {
-        fare: finalFare,
+        fare: totalFare,
         routeName: `${origin} → ${destination}`,
         distance: 'Within Town Proper',
         passengerType,
@@ -142,13 +142,13 @@ export function useFareCalculator() {
     } 
     // Case B: Barangay Route Found
     else if (route) {
-      const baseFare = getFareByGasPrice(gasPrice, route.baseRegular, route.baseStudent, passengerType);
-      const finalFare = (baseFare * passengerType.quantity) + (hasBaggage ? OFFICIAL_BAGGAGE_FEE : 0);
+      const unitFare = getFareByGasPrice(gasPrice, route.baseRegular, route.baseStudent, { ...passengerType, quantity: 1 });
+      const totalFare = (unitFare * passengerType.quantity) + (hasBaggage ? OFFICIAL_BAGGAGE_FEE : 0);
 
       result = {
-        fare: finalFare,
+        fare: totalFare,
         routeName: `${normalizeName(origin)} → ${normalizeName(destination)}`,
-        distance: route.distance,
+        distance: `${route.distance} km`,
         passengerType,
         gasPrice,
         hasBaggage,
@@ -158,7 +158,7 @@ export function useFareCalculator() {
     } 
     // Case C: No data
     else {
-      toast.error('Route not found in Tarifa. Check if Barangay is spelled correctly.');
+      toast.error('Route not found in Tarifa.');
       return null;
     }
 

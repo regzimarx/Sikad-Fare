@@ -50,14 +50,14 @@ export function getFareByGasPrice(
 
   // Rounding Logic:
   // For Regulars, we round to whole Pesos.
-  // For Discounted, we round to 2 decimal places to match the Pxx.x0 in the table.
+  // For Discounted, we round to 1 decimal place (e.g., .40 or .80)
   return isDiscounted 
     ? Math.round(adjustedFare * 10) / 10 
     : Math.round(adjustedFare);
 }
 
 /**
- * Map-based fare calculation
+ * Map-based fare calculation for custom points
  */
 export function calculateMapFare(
   distKm: number,
@@ -70,15 +70,17 @@ export function calculateMapFare(
   studentFare: number;
   estimatedRoadDist: number;
 } {
+  // Account for road winding/curves
   const estimatedRoadDistKm = distKm * 1.08;
   
   // Base Rate (Anchor P71-P80)
+  // Ordinance flag-down equivalent logic: P15.00 for first 1.5km
   let baseRegular = 15.00;
   if (estimatedRoadDistKm > 1.5) {
     baseRegular += Math.ceil(estimatedRoadDistKm - 1.5) * 2.00;
   }
   
-  const baseStudent = baseRegular * 0.8; 
+  const baseStudent = baseRegular * 0.8; // Standard 20% discount
 
   const unitRegular = getFareByGasPrice(gasPrice, baseRegular, baseStudent, { type: 'regular', quantity: 1 });
   const unitStudent = getFareByGasPrice(gasPrice, baseRegular, baseStudent, { type: 'student', quantity: 1 });

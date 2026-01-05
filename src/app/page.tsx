@@ -38,13 +38,15 @@ export default function Calculator() {
     setPassengerType,
     setHasBaggage,
     calculateFare,
-    setMapResult,
-    setError,
     reset,
     clearHistory
   } = useFareCalculator();
 
   const router = useRouter(); // Keeping router for general use, though not needed for Navbar
+
+  const setError = useCallback((message: string) => {
+    toast.error(message);
+  }, []);
 
   // --- History Visibility Handler (Previous Fix) ---
   const handleHistoryVisibilityChange = useCallback((isVisible: boolean) => {
@@ -93,7 +95,8 @@ export default function Calculator() {
           studentFare: firestoreFare.price * 0.8,
           rateUsed: 0,
         };
-        setMapResult(calculatedFare);
+        // setMapResult(calculatedFare); // Not available in hook
+        toast.success(`Special Route: ₱${firestoreFare.price}`);
         logFareCalculation(state.origin, state.destination, 'route', state.passengerType);
       } else {
         // Handle case where no special route is found
@@ -111,7 +114,7 @@ export default function Calculator() {
   // --- Calculation Handler for Map Mode ---
   const handleMapCalculate = (result: FareCalculation) => {
     // 1. Set the result in the state
-    setMapResult(result);
+    // setMapResult(result); // Not available in hook
 
     // 2. Log the event to analytics
     // For map mode, origin/destination are not text inputs, so we can use placeholders.

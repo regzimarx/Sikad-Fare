@@ -16,7 +16,7 @@ import HistorySheet from '../HistorySheet';
 import Modal from '../Modal';
 import { logHistoryOpened, logHistoryCleared } from '../../services/analytics';
 // Zone Utils
-import { isInsidePoblacion, GeoJsonData } from '../../lib/zoneUtils';
+import { isInsidePoblacion } from '../../lib/zoneUtils';
 
 // API Keys
 const MAPTILER_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY || process.env.NEXT_PUBLIC_MAPTILER_API_KEY;
@@ -111,14 +111,8 @@ export default function MapMode({
   const [isGeocodingOrigin, setIsGeocodingOrigin] = useState(false);
   const [isGeocodingDest, setIsGeocodingDest] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isHistoryVisible, setIsHistoryVisible] = useState(false);
   const [fareResult, setFareResult] = useState<FareCalculation | null>(null);
-  const [geoJsonData, setGeoJsonData] = useState<GeoJsonData | null>(null);
-
-  // Effect to notify the parent component when history visibility changes
-  useEffect(() => {
-    onHistoryVisibilityChange(isHistoryVisible);
-  }, [isHistoryVisible, onHistoryVisibilityChange]);
+  const [geoJsonData, setGeoJsonData] = useState<any | null>(null);
 
   // Informative runtime check
   useEffect(() => {
@@ -660,7 +654,7 @@ export default function MapMode({
             type="button"
             onClick={() => {
               logHistoryOpened('map');
-              setIsHistoryVisible(true);
+              onHistoryVisibilityChange(true);
             }}
             className="w-12 h-12 hover:bg-gray-100 flex items-center justify-center rounded-t-full"
             title="View History"
@@ -773,12 +767,15 @@ export default function MapMode({
       </Modal>
 
       <HistorySheet
-        isOpen={isHistoryVisible}
-        onClose={() => setIsHistoryVisible(false)}
+        isOpen={isHistoryOpen}
+        onClose={() => {
+          // Defer state update to prevent "update while rendering" warning
+          setTimeout(() => onHistoryVisibilityChange(false), 0);
+        }}
         onClearHistory={() => {
           logHistoryCleared();
           clearHistory();
-          setIsHistoryVisible(false);
+          onHistoryVisibilityChange(false);
         }}
         history={history}
         title="Map Calculation History"
