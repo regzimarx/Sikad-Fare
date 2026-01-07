@@ -22,6 +22,7 @@ interface DropdownProps {
   disabled?: boolean;
   disableSort?: boolean;
   tooltip?: ReactNode;
+  searchable?: boolean;
 }
 
 export default function Dropdown({
@@ -29,16 +30,19 @@ export default function Dropdown({
   icon,
   value,
   onChange,
-  // 💡 FIX APPLIED HERE: Set a default empty array for 'options'
   options = [], 
   placeholder,
   disabled = false,
   disableSort = false,
   tooltip,
+  searchable,
 }: DropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const [listHeight, setListHeight] = useState<number | undefined>(undefined);
 
   const getSelectedLabel = () => {
     // We can safely iterate over options now since it defaults to []
@@ -70,6 +74,31 @@ export default function Dropdown({
       return labelA.localeCompare(labelB);
     });
 
+  // Determine if search should be visible (default to true if > 10 options)
+  const shouldShowSearch = searchable ?? options.reduce((acc, opt) => {
+    if ('options' in opt) return acc + opt.options.length;
+    return acc + 1;
+  }, 0) > 10;
+
+  const filteredOptions = searchQuery
+    ? sortedOptions
+        .map((opt) => {
+          if ('options' in opt) {
+            const filteredSub = opt.options.filter((o) =>
+              o.label.toLowerCase().includes(searchQuery.toLowerCase())
+            );
+            if (filteredSub.length > 0) {
+              return { ...opt, options: filteredSub };
+            }
+            return null;
+          }
+          return opt.label.toLowerCase().includes(searchQuery.toLowerCase())
+            ? opt
+            : null;
+        })
+        .filter(Boolean) as (DropdownOption | DropdownOptgroup)[]
+    : sortedOptions;
+
   const closeDropdown = () => {
     setIsClosing(true);
     setTimeout(() => {
@@ -97,10 +126,22 @@ export default function Dropdown({
 
     if (isOpen) {
       document.addEventListener('mousedown', handleClickOutside);
+    } else {
+      // Reset search when closed
+      const timer = setTimeout(() => setSearchQuery(''), 400);
+      return () => clearTimeout(timer);
     }
 
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen]); 
+
+  useEffect(() => {
+    if (listRef.current) {
+      const height = listRef.current.scrollHeight;
+      const maxHeight = typeof window !== 'undefined' ? window.innerHeight * 0.6 : 600;
+      setListHeight(Math.min(height, maxHeight));
+    }
+  }, [filteredOptions, searchQuery, isOpen]);
 
   const handleSelect = (optValue: string | number) => {
     onChange(String(optValue));
@@ -162,47 +203,83 @@ export default function Dropdown({
               {/* Header */}
               <div className="p-4 border-b border-gray-200 text-center">
                 <h3 className="font-semibold text-gray-800">{label}</h3>
+                {shouldShowSearch && (
+                  <div className="mt-3 relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <svg
+                        className="h-4 w-4 text-gray-400"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                        />
+                      </svg>
+                    </div>
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Search..."
+                      className="block w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg leading-5 bg-gray-50 placeholder-gray-400 focus:outline-none focus:bg-white focus:ring-1 focus:ring-gray-900 focus:border-gray-900 sm:text-sm transition-colors"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                )}
               </div>
 
-              <div className="max-h-[60vh] overflow-y-auto p-4 pb-24">
-                <div className="grid grid-cols-2 gap-2">
-                  {sortedOptions.map((opt, index) =>
-                    'options' in opt ? (
-                      <div key={index} className="col-span-2 mb-4 last:mb-0">
-                        <div className="px-2 mb-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+              <div 
+                className="overflow-y-auto transition-[height] duration-300 ease-in-out"
+                style={{ height: listHeight ? `${listHeight}px` : 'auto', maxHeight: '60vh' }}
+              >
+                <div ref={listRef} className="p-4 pb-24">
+                  {filteredOptions.length === 0 && searchQuery ? (
+                    <div className="text-center text-gray-500 py-8 text-sm">No results found</div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      {filteredOptions.map((opt, index) =>
+                        'options' in opt ? (
+                        <div key={index} className="col-span-2 mb-4 last:mb-0">
+                          <div className="px-2 mb-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                            {opt.label}
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            {opt.options.map((subOpt) => (
+                              <button
+                                key={subOpt.value}
+                                type="button"
+                                onClick={() => handleSelect(subOpt.value)}
+                                className={`px-4 py-3 text-sm text-left rounded-lg transition-all ${
+                                  value === subOpt.value
+                                    ? 'bg-gray-900 text-white font-medium shadow-sm'
+                                    : 'bg-gray-50 text-gray-700 hover:bg-gray-100 active:scale-95'
+                                }`}
+                              >
+                                {subOpt.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => handleSelect(opt.value)}
+                          className={`w-full px-4 py-3 text-sm text-left rounded-lg transition-all ${
+                            value === opt.value
+                              ? 'bg-gray-900 text-white font-medium shadow-sm'
+                              : 'bg-gray-50 text-gray-700 hover:bg-gray-100 active:scale-95'
+                          }`}
+                        >
                           {opt.label}
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          {opt.options.map((subOpt) => (
-                            <button
-                              key={subOpt.value}
-                              type="button"
-                              onClick={() => handleSelect(subOpt.value)}
-                              className={`px-4 py-3 text-sm text-left rounded-lg transition-all ${
-                                value === subOpt.value
-                                  ? 'bg-gray-900 text-white font-medium shadow-sm'
-                                  : 'bg-gray-50 text-gray-700 hover:bg-gray-100 active:scale-95'
-                              }`}
-                            >
-                              {subOpt.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    ) : (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => handleSelect(opt.value)}
-                        className={`w-full px-4 py-3 text-sm text-left rounded-lg transition-all ${
-                          value === opt.value
-                            ? 'bg-gray-900 text-white font-medium shadow-sm'
-                            : 'bg-gray-50 text-gray-700 hover:bg-gray-100 active:scale-95'
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    )
+                        </button>
+                      )
+                    )}
+                    </div>
                   )}
                 </div>
               </div>
