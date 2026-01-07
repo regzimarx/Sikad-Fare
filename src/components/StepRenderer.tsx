@@ -91,7 +91,7 @@ export function StepRenderer({ step, formData, setFormData, availableDestination
                 key={reporter}
                 label={reporter}
                 isSelected={formData.reporterType === reporter}
-                onClick={() => setFormData({ ...formData, reporterType: reporter, issueType: [], miscIssueDescription: '' })}
+                onClick={() => setFormData({ ...formData, reporterType: reporter, issueType: [], miscIssueDescription: '', sikadNumber: '' })}
               />
             ))}
           </div>
@@ -129,6 +129,29 @@ export function StepRenderer({ step, formData, setFormData, availableDestination
         </div>
       );
     case 3: // Sikad Number
+      if (formData.reporterType === 'Driver') {
+        return (
+          <div>
+            <h2 className="text-2xl font-bold mb-6 text-center">Step 3: Passenger Details</h2>
+            <p className="text-sm text-gray-600 mb-2">
+              Please provide details about the passenger (e.g., gender, clothing, appearance).
+            </p>
+            <label htmlFor="passengerDetails" className="block text-lg font-medium text-gray-700 sr-only">
+              Passenger Details
+            </label>
+            <input
+              type="text"
+              id="passengerDetails"
+              value={formData.sikadNumber}
+              onChange={(e) => setFormData({ ...formData, sikadNumber: e.target.value })}
+              placeholder="e.g., Male, white shirt, carrying a bag"
+              className="w-full p-4 text-xl mt-1 border-2 border-gray-300 rounded-lg focus:border-blue-500 placeholder:text-gray-400"
+            />
+            <p className="mt-2 text-sm text-gray-500">This helps us understand the context of the incident.</p>
+          </div>
+        );
+      }
+
       return (
         <div>
           <h2 className="text-2xl font-bold mb-6 text-center">Step 3: Sikad Number?</h2>
