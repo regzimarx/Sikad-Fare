@@ -17,11 +17,12 @@ import { FareCalculation } from '../lib/types';
 // import BottomNavbar, { NavItem } from '../components/BottomNavbar';
 
 // Dynamically import MapMode to prevent SSR issues with Leaflet
-const MapMode = dynamic(() => import('../components/calculator/MapMode'), {
-  ssr: false,
-});
+// const MapMode = dynamic(() => import('../components/calculator/MapMode'), {
+//   ssr: false,
+// });
 
 import RouteMode from '../components/calculator/RouteMode';
+import StatusPage from '../components/StatusPage';
 
 export default function Calculator() {
   const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
@@ -112,14 +113,14 @@ export default function Calculator() {
   };
 
   // --- Calculation Handler for Map Mode ---
-  const handleMapCalculate = (result: FareCalculation) => {
-    // 1. Set the result in the state
-    // setMapResult(result); // Not available in hook
+  // const handleMapCalculate = (result: FareCalculation) => {
+  //   // 1. Set the result in the state
+  //   // setMapResult(result); // Not available in hook
 
-    // 2. Log the event to analytics
-    // For map mode, origin/destination are not text inputs, so we can use placeholders.
-    logFareCalculation('map_origin', 'map_destination', 'map', result.passengerType);
-  };
+  //   // 2. Log the event to analytics
+  //   // For map mode, origin/destination are not text inputs, so we can use placeholders.
+  //   logFareCalculation('map_origin', 'map_destination', 'map', result.passengerType);
+  // };
 
   // --- Mode Change Handler with Analytics ---
   const handleModeChange = (newMode: 'route' | 'map') => {
@@ -128,7 +129,7 @@ export default function Calculator() {
   };
 
   return (
-    <div className="h-screen bg-white flex flex-col relative">
+    <div className="h-screen bg-white flex flex-col relative max-w-sm mx-auto">
           {/* App Update Notice Banner */}
           {appConfig && (
             <div className="absolute top-4 left-1/2 -translate-x-1/2 w-[90%] max-w-md bg-blue-100 text-blue-800 p-3 rounded-lg shadow-lg z-[9999] flex items-center justify-between">
@@ -165,22 +166,7 @@ export default function Calculator() {
                   isHistoryOpen={isHistoryOpen}
                 />
               ) : (
-                <MapMode
-                  gasPrice={state.gasPrice}
-                  passengerType={state.passengerType}
-                  hasBaggage={state.hasBaggage}
-                  onGasPriceChange={setGasPrice}
-                  onPassengerTypeChange={setPassengerType}
-                  onBaggageChange={setHasBaggage}
-                  onCalculate={handleMapCalculate}
-                  onError={setError}
-                  history={state.history}
-                  clearHistory={clearHistory}
-                  onHistoryVisibilityChange={handleHistoryVisibilityChange}
-                  mode={state.mode}
-                  onModeChange={handleModeChange}
-                  isHistoryOpen={isHistoryOpen}
-                />
+                <StatusPage featureName="Map Mode" className="pt-5" />
               )}
             </div>
           </>

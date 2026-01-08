@@ -6,12 +6,13 @@ import Image from 'next/image';
 interface StatusPageProps {
   featureName: string;
   onNavigate?: (tab: NavItem) => void;
+  className?: string;
 }
 
-const StatusPage: React.FC<StatusPageProps> = ({ featureName, onNavigate }) => {
+const StatusPage: React.FC<StatusPageProps> = ({ featureName, onNavigate, className = '' }) => {
   return (
-    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-150px)] p-4 text-center">
-      <div className="bg-white p-8 rounded-3xl shadow-lg max-w-md w-full">
+    <div className={`flex flex-col items-center justify-start min-h-[calc(100vh-150px)] pt-10 p-4 text-center bg-white ${className}`}>
+      <div className="max-w-sm w-full">
         <div className="flex justify-center items-center">
           <Image 
             src="/favicon-1024x1024.svg" 
@@ -28,7 +29,7 @@ const StatusPage: React.FC<StatusPageProps> = ({ featureName, onNavigate }) => {
         </h1>
 
         <p className="text-gray-600 mb-6">
-          The <span className="font-semibold text-blue-600">{featureName}</span> tab is getting an upgrade.
+          The <span className="font-semibold text-blue-600">{featureName}</span> is getting an upgrade.
         </p>
 
         <p className="text-sm text-gray-500">

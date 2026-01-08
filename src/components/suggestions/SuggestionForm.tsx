@@ -59,7 +59,7 @@ export default function SuggestionForm({ onSubmit }: SuggestionFormProps) {
   }, [cooldown]);
 
   return (
-    <form onSubmit={handleFormSubmit} className="space-y-6 p-4">
+    <form onSubmit={handleFormSubmit} className="space-y-6 p-4 bg-white max-w-sm mx-auto">
       <div>
         <label htmlFor="suggestion-message" className="block text-sm font-medium text-gray-700">
           Your Suggestion*
