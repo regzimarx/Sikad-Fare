@@ -10,8 +10,10 @@ export interface RouteMatrix {
   [key: string]: Route;
 }
 
+export type DiscountedPassenger = 'student' | 'senior' | 'pwd';
+
 export type PassengerType = {
-  type: 'student' | 'regular' | 'senior' | 'pwd';
+  type: 'regular' | DiscountedPassenger;
   quantity: number;
 };
 
@@ -31,6 +33,7 @@ export interface FareCalculation {
 
 export interface HistoryEntry extends FareCalculation {
   id: string;
+  timestamp: string;
 }
 
 export interface GasPriceOption {

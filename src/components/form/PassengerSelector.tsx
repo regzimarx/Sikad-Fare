@@ -1,6 +1,6 @@
 'use client';
 
-import { PassengerType } from '../../lib/types';
+import { PassengerType, DiscountedPassenger } from '../../lib/types';
 import { useState, useRef, useEffect } from 'react';
 
 interface PassengerSelectorProps {
@@ -8,24 +8,19 @@ interface PassengerSelectorProps {
   onChange: (type: Partial<PassengerType>) => void;
 }
 
-// Now separated into 4 clear passenger types
-const passengerTypeOptions = [
+type SelectablePassengerType = PassengerType['type'];
+
+const passengerTypeOptions: { value: SelectablePassengerType; label: string }[] = [
   { value: 'student', label: 'Student' },
   { value: 'pwd', label: 'PWD' },
   { value: 'senior', label: 'Senior' },
   { value: 'regular', label: 'Regular' },
 ];
 
-export default function PassengerSelector({ passengerType, onChange }: PassengerSelectorProps) {
+export default function PassengerSelector({ passengerType, onChange }: PassengerSelectorProps) { 
   const [isOpen, setIsOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const [selectedUIType, setSelectedUIType] = useState<'student' | 'pwd' | 'senior' | 'regular'>(passengerType.type as any);
-
-  const getDisplayText = () => {
-    const typeOption = passengerTypeOptions.find(opt => opt.value === passengerType.type);
-    return `${passengerType.quantity}x | ${typeOption?.label || 'Regular'}`;
-  };
 
   const closeDropdown = () => {
     setIsClosing(true);
@@ -61,10 +56,8 @@ export default function PassengerSelector({ passengerType, onChange }: Passenger
     if (newQty >= 1) onChange({ quantity: newQty });
   };
 
-  const handleTypeSelect = (type: 'student' | 'pwd' | 'senior' | 'regular') => {
-    setSelectedUIType(type);
-    // ✅ FIXED: Pass the actual type directly instead of mapping everything to 'student'
-    onChange({ type: type as PassengerType['type'] });
+  const handleTypeSelect = (type: SelectablePassengerType) => {
+    onChange({ type });
     closeDropdown();
   };
 
@@ -87,7 +80,7 @@ export default function PassengerSelector({ passengerType, onChange }: Passenger
             <span className="font-semibold">{passengerType.quantity} </span>
             <span className="text-gray-300 font-normal">|</span>
             <span className="truncate">
-              {passengerTypeOptions.find(o => o.value === selectedUIType)?.label || 'Regular'}
+              {passengerTypeOptions.find(o => o.value === passengerType.type)?.label || 'Regular'}
             </span>
           </span>
 
@@ -160,11 +153,9 @@ export default function PassengerSelector({ passengerType, onChange }: Passenger
                       <button
                         key={option.value}
                         type="button"
-                        onClick={() =>
-                          handleTypeSelect(option.value as 'student' | 'pwd' | 'senior' | 'regular')
-                        }
+                        onClick={() => handleTypeSelect(option.value)}
                         className={`px-4 py-4 text-sm font-medium text-left rounded-lg transition-all ${
-                          selectedUIType === option.value
+                          passengerType.type === option.value
                             ? 'bg-gray-900 text-white shadow-sm'
                             : 'bg-gray-50 text-gray-700 hover:bg-gray-100 active:scale-95'
                         }`}

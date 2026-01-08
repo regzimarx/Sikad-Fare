@@ -1,56 +1,64 @@
 import { PassengerType } from './types';
 
-// Calculate fare multiplier based on gas price
-export function getFareMultiplier(gasPrice: number): number {
-  if (gasPrice >= 101) return 1.6;
-  if (gasPrice >= 91) return 1.5;
-  if (gasPrice >= 81) return 1.4;
-  if (gasPrice >= 71) return 1.3;
-  if (gasPrice >= 61) return 1.2;
-  if (gasPrice >= 51) return 1.0;
-  if (gasPrice >= 41) return 0.9;
-  return 0.8;
-}
-
-// Calculate fare based on gas price and passenger type
+/**
+ * Midsayap Ordinance 536 Advanced Variable Step Logic:
+ * Patterns discovered from Official Matrix:
+ * - Regular: P1.00 shift (Gas < 71), P2.00 shift (Gas >= 71)
+ * - Discounted: P0.80 shift (Gas < 71), P1.60 shift (Gas >= 71)
+ */
 export function getFareByGasPrice(
   gasPrice: number,
   baseRegular: number,
   baseStudent: number,
   passengerType: PassengerType
 ): number {
-  const multiplier = getFareMultiplier(gasPrice);
-  const fare = passengerType.type === 'student' 
-    ? baseStudent * multiplier 
-    : baseRegular * multiplier;
-  return fare * passengerType.quantity;
-}
-
-// Haversine distance formula (returns km)
-export function haversineDistance(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number
-): number {
-  function toRad(x: number) {
-    return (x * Math.PI) / 180;
-  }
+  const anchorPrice = 80; // Anchor column (P71-P80)
+  const isDiscounted = ['student', 'senior', 'pwd'].includes(passengerType.type);
   
-  const R = 6371; // Earth radius in km
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) *
-      Math.cos(toRad(lat2)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
+  let adjustedFare = isDiscounted ? baseStudent : baseRegular;
+  let currentBracket = anchorPrice;
+
+  // Moving DOWN from Anchor (e.g., to Today's P51-P60)
+  while (currentBracket > gasPrice) {
+    let stepValue: number;
+    
+    if (currentBracket > 71) {
+      // High Gas Threshold: Regular P2.00 / Discounted P1.60
+      stepValue = isDiscounted ? 1.60 : 2.00;
+    } else {
+      // Low Gas Threshold: Regular P1.00 / Discounted P0.80
+      stepValue = isDiscounted ? 0.80 : 1.00;
+    }
+    
+    adjustedFare -= stepValue;
+    currentBracket -= 10;
+  }
+
+  // Moving UP from Anchor
+  while (currentBracket < gasPrice - 10) {
+    currentBracket += 10;
+    let stepValue: number;
+    
+    if (currentBracket >= 71) {
+      stepValue = isDiscounted ? 1.60 : 2.00;
+    } else {
+      stepValue = isDiscounted ? 0.80 : 1.00;
+    }
+    
+    adjustedFare += stepValue;
+  }
+
+  // Rounding Logic:
+  // For Regulars, we round to whole Pesos.
+  // For Discounted, we round to 1 decimal place (e.g., .40 or .80)
+  return isDiscounted 
+    ? Math.round(adjustedFare * 10) / 10 
+    : Math.round(adjustedFare);
 }
 
-// Calculate map-based fare
+/**
+ * Map-based fare calculation for custom points
+ */
 export function calculateMapFare(
   distKm: number,
   gasPrice: number,
@@ -60,52 +68,33 @@ export function calculateMapFare(
   fare: number;
   regularFare: number;
   studentFare: number;
-  rateUsed: number;
   estimatedRoadDist: number;
 } {
-  // Apply 8% multiplier for road curves
+  // Account for road winding/curves
   const estimatedRoadDistKm = distKm * 1.08;
   
-  let ratePerKm = 4.34;
-  if (gasPrice >= 80) ratePerKm *= 1.1;
-  if (gasPrice >= 90) ratePerKm *= 1.2;
-  
-  let regularFare: number;
-  let studentFare: number;
-  
-  // Minimum fare for distances under 1 km
-  if (estimatedRoadDistKm < 1) {
-    const baseMinRegular = 15.00;
-    const baseMinStudent = 12.00;
-    regularFare = getFareByGasPrice(gasPrice, baseMinRegular, baseMinStudent, { type: 'regular', quantity: 1 });
-    studentFare = getFareByGasPrice(gasPrice, baseMinRegular, baseMinStudent, { type: 'student', quantity: 1 });
-  } else {
-    regularFare = estimatedRoadDistKm * ratePerKm;
-    studentFare = regularFare * 0.8;
+  // Base Rate (Anchor P71-P80)
+  // Ordinance flag-down equivalent logic: P15.00 for first 1.5km
+  let baseRegular = 15.00;
+  if (estimatedRoadDistKm > 1.5) {
+    baseRegular += Math.ceil(estimatedRoadDistKm - 1.5) * 2.00;
   }
   
-  // Add surcharge for distances beyond 2km
-  if (estimatedRoadDistKm > 2) {
-    const surcharge = Math.ceil(estimatedRoadDistKm - 2) * 2.00;
-    regularFare += surcharge;
-    studentFare += surcharge;
-  }
-  
-  // Determine fare based on passenger type and quantity FIRST
-  let fare = passengerType.type === 'student' 
-    ? studentFare * passengerType.quantity 
-    : regularFare * passengerType.quantity;
+  const baseStudent = baseRegular * 0.8; // Standard 20% discount
 
-  // Add baggage fee AFTER calculating total passenger fare
+  const unitRegular = getFareByGasPrice(gasPrice, baseRegular, baseStudent, { type: 'regular', quantity: 1 });
+  const unitStudent = getFareByGasPrice(gasPrice, baseRegular, baseStudent, { type: 'student', quantity: 1 });
+
+  let finalFare = (passengerType.type === 'regular' ? unitRegular : unitStudent) * passengerType.quantity;
+
   if (hasBaggage) {
-    fare += 10;
+    finalFare += 10; // Section 3.e flat fee
   }
   
   return {
-    fare,
-    regularFare,
-    studentFare,
-    rateUsed: ratePerKm,
+    fare: finalFare,
+    regularFare: unitRegular,
+    studentFare: unitStudent,
     estimatedRoadDist: estimatedRoadDistKm
   };
 }

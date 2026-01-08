@@ -1,7 +1,7 @@
 'use client';
 
-import React from 'react';
-import { FaTimes } from 'react-icons/fa';
+import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 interface ModalProps {
   isOpen: boolean;
@@ -10,28 +10,38 @@ interface ModalProps {
 }
 
 export default function Modal({ isOpen, onClose, children }: ModalProps) {
-  if (!isOpen) return null;
+  const [mounted, setMounted] = useState(false);
 
-  return (
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen]);
+
+  if (!mounted || !isOpen) return null;
+
+  return createPortal(
     <div
       onClick={onClose}
-      className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4 animate-fade-in"
+      className="fixed inset-0 bg-black/60 z-50 flex justify-center items-center p-4 backdrop-blur-sm transition-opacity duration-300"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-background rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto relative"
+        className="relative w-auto max-w-none"
       >
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 w-8 h-8 bg-gray-200 text-gray-600 rounded-full flex items-center justify-center hover:bg-gray-300 transition-colors z-10"
-          aria-label="Close modal"
-        >
-          <FaTimes />
-        </button>
-        <div className="p-6 pt-12">
-          {children}
-        </div>
+        {children}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

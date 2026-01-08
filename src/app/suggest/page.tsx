@@ -2,8 +2,8 @@
 
 import React from 'react';
 import toast from 'react-hot-toast';
-import SuggestionForm from '../components/suggestions/SuggestionForm'; // Assuming this file exists
-import { addSuggestion } from '../services/suggestions';
+import SuggestionForm from '../../components/suggestions/SuggestionForm'; // Assuming this file exists
+import { addSuggestion } from '../../services/suggestions';
 
 interface SuggestionData {
   message: string;
