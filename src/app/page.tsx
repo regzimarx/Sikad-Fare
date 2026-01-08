@@ -57,7 +57,7 @@ export default function Calculator() {
   // --- Analytics: Track QR Code Scans ---
   useEffect(() => {
     // Check if the page was loaded from a QR code scan
-    if (searchParams.get('utm_source') === 'qr') {
+    if (searchParams?.get('utm_source') === 'qr') {
       logQrCodeScan();
     }
   }, [searchParams]);
