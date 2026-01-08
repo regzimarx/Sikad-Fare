@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import toast from 'react-hot-toast';
@@ -24,7 +24,7 @@ import { FareCalculation } from '../lib/types';
 import RouteMode from '../components/calculator/RouteMode';
 import StatusPage from '../components/StatusPage';
 
-export default function Calculator() {
+function CalculatorContent() {
   const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
@@ -171,4 +171,12 @@ export default function Calculator() {
             </div>
           </>
         </div>  );
+}
+
+export default function Calculator() {
+  return (
+    <Suspense fallback={<div className="h-screen bg-white flex items-center justify-center max-w-sm mx-auto">Loading...</div>}>
+      <CalculatorContent />
+    </Suspense>
+  );
 }
